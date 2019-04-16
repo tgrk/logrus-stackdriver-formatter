@@ -4,17 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"reflect"
 	"testing"
 
-	"github.com/kr/pretty"
+	"github.com/google/go-cmp/cmp"
 
 	"github.com/sirupsen/logrus"
 )
 
 func TestFormatter(t *testing.T) {
-	skipTimestamp = true
-
 	for _, tt := range formatterTests {
 		var out bytes.Buffer
 
@@ -23,6 +20,7 @@ func TestFormatter(t *testing.T) {
 		logger.Formatter = NewFormatter(
 			WithService("test"),
 			WithVersion("0.1"),
+			WithSkipTimestamp(),
 		)
 
 		tt.run(logger)
@@ -30,8 +28,8 @@ func TestFormatter(t *testing.T) {
 		var got map[string]interface{}
 		json.Unmarshal(out.Bytes(), &got)
 
-		if !reflect.DeepEqual(got, tt.out) {
-			t.Errorf("unexpected output = %# v; want = %# v", pretty.Formatter(got), pretty.Formatter(tt.out))
+		if !cmp.Equal(got, tt.out) {
+			t.Errorf(cmp.Diff(got, tt.out))
 		}
 	}
 }
@@ -70,8 +68,8 @@ var formatterTests = []struct {
 					"foo": "bar",
 				},
 				"reportLocation": map[string]interface{}{
-					"filePath":     "github.com/TV4/logrus-stackdriver-formatter/formatter_test.go",
-					"lineNumber":   59.0,
+					"filePath":     "github.com/pbabbicola/logrus-stackdriver-formatter/formatter_test.go",
+					"lineNumber":   57.0,
 					"functionName": "glob..func2",
 				},
 			},
@@ -96,8 +94,8 @@ var formatterTests = []struct {
 					"foo": "bar",
 				},
 				"reportLocation": map[string]interface{}{
-					"filePath":     "github.com/TV4/logrus-stackdriver-formatter/formatter_test.go",
-					"lineNumber":   85.0,
+					"filePath":     "github.com/pbabbicola/logrus-stackdriver-formatter/formatter_test.go",
+					"lineNumber":   83.0,
 					"functionName": "glob..func3",
 				},
 			},
@@ -129,8 +127,8 @@ var formatterTests = []struct {
 					"method": "GET",
 				},
 				"reportLocation": map[string]interface{}{
-					"filePath":     "github.com/TV4/logrus-stackdriver-formatter/formatter_test.go",
-					"lineNumber":   115.0,
+					"filePath":     "github.com/pbabbicola/logrus-stackdriver-formatter/formatter_test.go",
+					"lineNumber":   113.0,
 					"functionName": "glob..func4",
 				},
 			},

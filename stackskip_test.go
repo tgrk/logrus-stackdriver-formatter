@@ -3,11 +3,11 @@ package stackdriver
 import (
 	"bytes"
 	"encoding/json"
-	"reflect"
 	"testing"
 
-	"github.com/TV4/logrus-stackdriver-formatter/test"
-	"github.com/kr/pretty"
+	"github.com/google/go-cmp/cmp"
+
+	"github.com/pbabbicola/logrus-stackdriver-formatter/test"
 	"github.com/sirupsen/logrus"
 )
 
@@ -19,7 +19,8 @@ func TestStackSkip(t *testing.T) {
 	logger.Formatter = NewFormatter(
 		WithService("test"),
 		WithVersion("0.1"),
-		WithStackSkip("github.com/TV4/logrus-stackdriver-formatter/test"),
+		WithStackSkip("github.com/pbabbicola/logrus-stackdriver-formatter/test"),
+		WithSkipTimestamp(),
 	)
 
 	mylog := test.LogWrapper{
@@ -40,14 +41,14 @@ func TestStackSkip(t *testing.T) {
 		},
 		"context": map[string]interface{}{
 			"reportLocation": map[string]interface{}{
-				"filePath":     "github.com/TV4/logrus-stackdriver-formatter/stackskip_test.go",
-				"lineNumber":   29.0,
+				"filePath":     "github.com/pbabbicola/logrus-stackdriver-formatter/stackskip_test.go",
+				"lineNumber":   30.0,
 				"functionName": "TestStackSkip",
 			},
 		},
 	}
 
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("unexpected output = %# v; want = %# v", pretty.Formatter(got), pretty.Formatter(want))
+	if !cmp.Equal(got, want) {
+		cmp.Diff(got, want)
 	}
 }

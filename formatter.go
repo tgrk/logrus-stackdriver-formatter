@@ -11,8 +11,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var skipTimestamp bool
-
 type severity string
 
 const (
@@ -38,7 +36,7 @@ type serviceContext struct {
 	Version string `json:"version,omitempty"`
 }
 
-type reportLocation struct {
+type ReportLocation struct {
 	FilePath     string `json:"filePath,omitempty"`
 	LineNumber   int    `json:"lineNumber,omitempty"`
 	FunctionName string `json:"functionName,omitempty"`
@@ -46,8 +44,10 @@ type reportLocation struct {
 
 type context struct {
 	Data           map[string]interface{} `json:"data,omitempty"`
-	ReportLocation *reportLocation        `json:"reportLocation,omitempty"`
+	ReportLocation *ReportLocation        `json:"reportLocation,omitempty"`
 	HTTPRequest    map[string]interface{} `json:"httpRequest,omitempty"`
+	PubSubRequest  map[string]interface{} `json:"pubSubRequest,omitempty"`
+	GRPCRequest    map[string]interface{} `json:"grpcRequest,omitempty"`
 }
 
 type entry struct {
@@ -60,9 +60,10 @@ type entry struct {
 
 // Formatter implements Stackdriver formatting for logrus.
 type Formatter struct {
-	Service   string
-	Version   string
-	StackSkip []string
+	Service       string
+	Version       string
+	StackSkip     []string
+	SkipTimestamp bool
 }
 
 // Option lets you configure the Formatter.
@@ -86,6 +87,13 @@ func WithVersion(v string) Option {
 func WithStackSkip(v string) Option {
 	return func(f *Formatter) {
 		f.StackSkip = append(f.StackSkip, v)
+	}
+}
+
+// WithSkipTimestamp lets you avoid setting the timestamp
+func WithSkipTimestamp() Option {
+	return func(f *Formatter) {
+		f.SkipTimestamp = true
 	}
 }
 
@@ -134,7 +142,6 @@ func (f *Formatter) Format(e *logrus.Entry) ([]byte, error) {
 	severity := levelsToSeverity[e.Level]
 
 	ee := entry{
-
 		Message:  e.Message,
 		Severity: severity,
 		Context: &context{
@@ -142,8 +149,12 @@ func (f *Formatter) Format(e *logrus.Entry) ([]byte, error) {
 		},
 	}
 
-	if !skipTimestamp {
-		ee.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
+	if !f.SkipTimestamp {
+		if !e.Time.IsZero() {
+			ee.Timestamp = e.Time.UTC().Format(time.RFC3339Nano)
+		} else {
+			ee.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
+		}
 	}
 
 	switch severity {
@@ -159,8 +170,6 @@ func (f *Formatter) Format(e *logrus.Entry) ([]byte, error) {
 		if err, ok := ee.Context.Data["error"]; ok {
 			ee.Message = fmt.Sprintf("%s: %s", e.Message, err)
 			delete(ee.Context.Data, "error")
-		} else {
-			ee.Message = e.Message
 		}
 
 		// As a convenience, when using supplying the httpRequest field, it
@@ -172,14 +181,38 @@ func (f *Formatter) Format(e *logrus.Entry) ([]byte, error) {
 			}
 		}
 
-		// Extract report location from call stack.
-		if c, err := f.errorOrigin(); err == nil {
-			lineNumber, _ := strconv.ParseInt(fmt.Sprintf("%d", c), 10, 64)
+		// As a convenience, when using supplying the grpcRequest field, it
+		// gets special care.
+		if reqData, ok := ee.Context.Data["grpcRequest"]; ok {
+			if req, ok := reqData.(map[string]interface{}); ok {
+				ee.Context.GRPCRequest = req
+				delete(ee.Context.Data, "grpcRequest")
+			}
+		}
+		// As a convenience, when using supplying the pubSubRequest field, it
+		// gets special care.
+		if reqData, ok := ee.Context.Data["pubSubRequest"]; ok {
+			if req, ok := reqData.(map[string]interface{}); ok {
+				ee.Context.PubSubRequest = req
+				delete(ee.Context.Data, "pubsubRequest")
+			}
+		}
 
-			ee.Context.ReportLocation = &reportLocation{
-				FilePath:     fmt.Sprintf("%+s", c),
-				LineNumber:   int(lineNumber),
-				FunctionName: fmt.Sprintf("%n", c),
+		if reqData, ok := ee.Context.Data["reportLocation"]; ok {
+			if req, ok := reqData.(*ReportLocation); ok {
+				ee.Context.ReportLocation = req
+				delete(ee.Context.Data, "reportLocation")
+			}
+		} else {
+			// Extract report location from call stack.
+			if c, err := f.errorOrigin(); err == nil {
+				lineNumber, _ := strconv.ParseInt(fmt.Sprintf("%d", c), 10, 64)
+
+				ee.Context.ReportLocation = &ReportLocation{
+					FilePath:     fmt.Sprintf("%+s", c),
+					LineNumber:   int(lineNumber),
+					FunctionName: fmt.Sprintf("%n", c),
+				}
 			}
 		}
 	}
