@@ -198,10 +198,11 @@ func (f *Formatter) Format(e *logrus.Entry) ([]byte, error) {
 			}
 		}
 
-		if reqData, ok := ee.Context.Data["reportLocation"]; ok {
-			if req, ok := reqData.(*ReportLocation); ok {
-				ee.Context.ReportLocation = req
-				delete(ee.Context.Data, "reportLocation")
+		if e.HasCaller() {
+			ee.Context.ReportLocation = &ReportLocation{
+				FilePath:     e.Caller.File,
+				FunctionName: e.Caller.Function,
+				LineNumber:   e.Caller.Line,
 			}
 		} else {
 			// Extract report location from call stack.
