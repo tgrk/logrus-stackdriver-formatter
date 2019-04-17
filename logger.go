@@ -2,9 +2,9 @@ package stackdriver
 
 import (
 	"io"
+	"strings"
 
 	"github.com/go-kit/kit/log"
-	"github.com/jinzhu/copier"
 	"github.com/sirupsen/logrus"
 )
 
@@ -31,19 +31,7 @@ func With(logger *Logger, vals ...interface{}) *Logger {
 	if len(vals) == 0 {
 		return logger
 	}
-	kvs := make([]interface{}, len(vals))
-	err := copier.Copy(kvs, vals)
-	if err != nil {
-		panic(err)
-	}
-	if len(vals)%2 != 0 {
-		kvs = append(vals, log.ErrMissingValue)
-	}
-	for i := 0; i < len(kvs); i = i + 2 {
-		if k, ok := kvs[i].(string); ok {
-			logger.Logger = logger.Logger.WithField(k, kvs[i+1])
-		}
-	}
+	logger.Logger = logger.Logger.WithFields(valsToFields(vals))
 	return logger
 }
 
@@ -56,29 +44,63 @@ func (l *Logger) WithFields(f logrus.Fields) *Logger {
 
 // Log creates a log event from keyvals, a variadic sequence of alternating
 // keys and values.
-func (l Logger) Log(keyvals ...interface{}) error {
-	kvs := make([]interface{}, len(keyvals))
-	err := copier.Copy(kvs, keyvals)
-	if err != nil {
-		return err
-	}
-	severity, location := getLevelFromArgs(kvs)
+func (l Logger) Log(kvs ...interface{}) error {
+	severity, location := getLevelFromArgs(kvs...)
 	if location >= 0 {
 		kvs = append(kvs[:location], kvs[location+2:]...)
 	}
-	l.Logger.Log(severity, kvs...)
+	message, location := getMessageFromArgs(kvs...)
+	if location >= 0 {
+
+		kvs = append(kvs[:location], kvs[location+2:]...)
+	}
+	log := l.Logger.WithFields(valsToFields(kvs...))
+	log.Log(severity, message)
 	return nil
 }
 
-func getLevelFromArgs(kvs []interface{}) (logrus.Level, int) {
+func getLevelFromArgs(kvs ...interface{}) (logrus.Level, int) {
 	for i, k := range kvs {
 		if field, ok := k.(string); ok {
-			if field == "severity" && i < len(kvs) {
+			if strings.ToLower(field) == "severity" && i < len(kvs) {
 				if lvl, ok := kvs[i+1].(logrus.Level); ok {
 					return lvl, i
+				}
+				if v, ok := kvs[i+1].(string); ok {
+					if lvl, err := logrus.ParseLevel(v); err == nil {
+						return lvl, i
+					}
 				}
 			}
 		}
 	}
 	return logrus.InfoLevel, -1
+}
+
+func getMessageFromArgs(kvs ...interface{}) (string, int) {
+	for i, k := range kvs {
+		if field, ok := k.(string); ok {
+			if field == "message" && i < len(kvs) {
+				if msg, ok := kvs[i+1].(string); ok {
+					return msg, i
+				}
+			}
+		}
+	}
+	return "", -1
+}
+
+func valsToFields(vals ...interface{}) logrus.Fields {
+	kvs := make([]interface{}, len(vals))
+	copy(kvs, vals)
+	if len(vals)%2 != 0 {
+		kvs = append(kvs, log.ErrMissingValue)
+	}
+	fields := logrus.Fields{}
+	for i := 0; i < len(kvs)-1; i = i + 2 {
+		if k, ok := kvs[i].(string); ok {
+			fields[k] = kvs[i+1]
+		}
+	}
+	return fields
 }

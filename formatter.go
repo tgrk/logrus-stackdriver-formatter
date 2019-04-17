@@ -102,6 +102,7 @@ func NewFormatter(options ...Option) *Formatter {
 	fmtr := Formatter{
 		StackSkip: []string{
 			"github.com/sirupsen/logrus",
+			"github.com/pbabbicola/logrus-stackdriver-formatter",
 		},
 	}
 	for _, option := range options {
@@ -120,8 +121,7 @@ func (f *Formatter) errorOrigin() (stack.Call, error) {
 		return false
 	}
 
-	// We start at 2 to skip this call and our caller's call.
-	for i := 2; ; i++ {
+	for i := 0; ; i++ {
 		c := stack.Caller(i)
 		// ErrNoFunc indicates we're over traversing the stack.
 		if _, err := c.MarshalText(); err != nil {
@@ -198,7 +198,7 @@ func (f *Formatter) Format(e *logrus.Entry) ([]byte, error) {
 			}
 		}
 
-		if e.HasCaller() {
+		if e.Caller != nil {
 			ee.Context.ReportLocation = &ReportLocation{
 				FilePath:     e.Caller.File,
 				FunctionName: e.Caller.Function,
