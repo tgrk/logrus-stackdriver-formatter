@@ -11,6 +11,7 @@ import (
 // Logger is a gokit-compatible wrapper for logrus.Logger
 type Logger struct {
 	Logger *logrus.Logger
+	Fields logrus.Fields
 }
 
 // NewStackdriverLogger creates a gokit-compatible logger
@@ -41,7 +42,7 @@ func With(logger *Logger, vals ...interface{}) *Logger {
 	}
 	for i := 0; i < len(kvs); i = i + 2 {
 		if k, ok := kvs[i].(string); ok {
-			logger.Logger.WithField(k, kvs[i+1])
+			logger.Fields[k] = kvs[i+1]
 		}
 	}
 	return logger
@@ -59,7 +60,7 @@ func (l Logger) Log(keyvals ...interface{}) error {
 	if location >= 0 {
 		kvs = append(kvs[:location], kvs[location+2:]...)
 	}
-	l.Logger.Log(severity, kvs...)
+	l.Logger.WithFields(l.Fields).Log(severity, kvs...)
 	return nil
 }
 
