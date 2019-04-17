@@ -10,7 +10,7 @@ import (
 
 // Logger is a gokit-compatible wrapper for logrus.Logger
 type Logger struct {
-	Logger logrus.Entry
+	Logger *logrus.Entry
 }
 
 // NewStackdriverLogger creates a gokit-compatible logger
@@ -18,7 +18,7 @@ func NewStackdriverLogger(w io.Writer, opts ...Option) *Logger {
 	logger := logrus.New()
 	logger.SetFormatter(NewFormatter(opts...))
 	logger.SetOutput(w)
-	return &Logger{Logger: *logrus.NewEntry(logger)}
+	return &Logger{Logger: logrus.NewEntry(logger)}
 }
 
 // With returns a new contextual logger with keyvals prepended to those passed
@@ -41,7 +41,7 @@ func With(logger *Logger, vals ...interface{}) *Logger {
 	}
 	for i := 0; i < len(kvs); i = i + 2 {
 		if k, ok := kvs[i].(string); ok {
-			logger.Logger.WithField(k, kvs[i+1])
+			logger.Logger = logger.Logger.WithField(k, kvs[i+1])
 		}
 	}
 	return logger
@@ -50,9 +50,7 @@ func With(logger *Logger, vals ...interface{}) *Logger {
 // WithFields appends fields to the Logger to be used on the
 // logrus logger when logging
 func (l *Logger) WithFields(f logrus.Fields) *Logger {
-	for k, v := range f {
-		l.Logger.WithField(k, v)
-	}
+	l.Logger = l.Logger.WithFields(f)
 	return l
 }
 
