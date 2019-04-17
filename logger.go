@@ -10,8 +10,7 @@ import (
 
 // Logger is a gokit-compatible wrapper for logrus.Logger
 type Logger struct {
-	Logger *logrus.Logger
-	Fields logrus.Fields
+	Logger logrus.Entry
 }
 
 // NewStackdriverLogger creates a gokit-compatible logger
@@ -19,7 +18,7 @@ func NewStackdriverLogger(w io.Writer, opts ...Option) *Logger {
 	logger := logrus.New()
 	logger.SetFormatter(NewFormatter(opts...))
 	logger.SetOutput(w)
-	return &Logger{Logger: logger}
+	return &Logger{Logger: *logrus.NewEntry(logger)}
 }
 
 // With returns a new contextual logger with keyvals prepended to those passed
@@ -42,7 +41,7 @@ func With(logger *Logger, vals ...interface{}) *Logger {
 	}
 	for i := 0; i < len(kvs); i = i + 2 {
 		if k, ok := kvs[i].(string); ok {
-			logger.Fields[k] = kvs[i+1]
+			logger.Logger.WithField(k, kvs[i+1])
 		}
 	}
 	return logger
@@ -52,7 +51,7 @@ func With(logger *Logger, vals ...interface{}) *Logger {
 // logrus logger when logging
 func (l *Logger) WithFields(f logrus.Fields) *Logger {
 	for k, v := range f {
-		l.Fields[k] = v
+		l.Logger.WithField(k, v)
 	}
 	return l
 }
@@ -69,7 +68,7 @@ func (l Logger) Log(keyvals ...interface{}) error {
 	if location >= 0 {
 		kvs = append(kvs[:location], kvs[location+2:]...)
 	}
-	l.Logger.WithFields(l.Fields).Log(severity, kvs...)
+	l.Logger.Log(severity, kvs...)
 	return nil
 }
 
