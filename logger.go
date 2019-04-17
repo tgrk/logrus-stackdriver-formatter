@@ -48,6 +48,15 @@ func With(logger *Logger, vals ...interface{}) *Logger {
 	return logger
 }
 
+// WithFields appends fields to the Logger to be used on the
+// logrus logger when logging
+func (l *Logger) WithFields(f logrus.Fields) *Logger {
+	for k, v := range f {
+		l.Fields[k] = v
+	}
+	return l
+}
+
 // Log creates a log event from keyvals, a variadic sequence of alternating
 // keys and values.
 func (l Logger) Log(keyvals ...interface{}) error {
