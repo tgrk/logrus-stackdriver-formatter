@@ -36,7 +36,6 @@ func (l Logger) Log(kvs ...interface{}) error {
 	}
 	message, location := getMessageFromArgs(kvs...)
 	if location >= 0 {
-
 		kvs = append(kvs[:location], kvs[location+2:]...)
 	}
 	log = log.WithFields(valsToFields(kvs...))
@@ -68,9 +67,12 @@ func getLevelFromArgs(kvs ...interface{}) (logrus.Level, int) {
 func getMessageFromArgs(kvs ...interface{}) (string, int) {
 	for i, k := range kvs {
 		if field, ok := k.(string); ok {
-			if field == "message" || field == "err" && i < len(kvs) {
+			if (field == "message" || field == "err" || field == "error") && i < len(kvs) {
 				if msg, ok := kvs[i+1].(string); ok {
 					return msg, i
+				}
+				if msg, ok := kvs[i+1].(error); ok {
+					return msg.Error(), i
 				}
 			}
 		}
