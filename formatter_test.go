@@ -1,4 +1,4 @@
-package stackdriver
+package stackdriver_test
 
 import (
 	"bytes"
@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	stackdriver "github.com/pbabbicola/logrus-stackdriver-formatter"
 
 	"github.com/sirupsen/logrus"
 )
@@ -17,10 +18,10 @@ func TestFormatter(t *testing.T) {
 
 		logger := logrus.New()
 		logger.Out = &out
-		logger.Formatter = NewFormatter(
-			WithService("test"),
-			WithVersion("0.1"),
-			WithSkipTimestamp(),
+		logger.Formatter = stackdriver.NewFormatter(
+			stackdriver.WithService("test"),
+			stackdriver.WithVersion("0.1"),
+			stackdriver.WithSkipTimestamp(),
 		)
 
 		tt.run(logger)
@@ -69,7 +70,7 @@ var formatterTests = []struct {
 				},
 				"reportLocation": map[string]interface{}{
 					"filePath":     "github.com/pbabbicola/logrus-stackdriver-formatter/formatter_test.go",
-					"lineNumber":   57.0,
+					"lineNumber":   58.0,
 					"functionName": "glob..func2",
 				},
 			},
@@ -95,7 +96,7 @@ var formatterTests = []struct {
 				},
 				"reportLocation": map[string]interface{}{
 					"filePath":     "github.com/pbabbicola/logrus-stackdriver-formatter/formatter_test.go",
-					"lineNumber":   83.0,
+					"lineNumber":   84.0,
 					"functionName": "glob..func3",
 				},
 			},
@@ -128,7 +129,7 @@ var formatterTests = []struct {
 				},
 				"reportLocation": map[string]interface{}{
 					"filePath":     "github.com/pbabbicola/logrus-stackdriver-formatter/formatter_test.go",
-					"lineNumber":   113.0,
+					"lineNumber":   114.0,
 					"functionName": "glob..func4",
 				},
 			},
