@@ -155,12 +155,16 @@ func (f *Formatter) errorOrigin() (stack.Call, error) {
 func (f *Formatter) Format(e *logrus.Entry) ([]byte, error) {
 	severity := levelsToSeverity[e.Level]
 
+	message := []string{}
+
 	ee := entry{
-		Message:  e.Message,
 		Severity: severity,
 		Context: &context{
 			Data: e.Data,
 		},
+	}
+	if len(e.Message) > 0 {
+		message = append(message, e.Message)
 	}
 
 	if !f.SkipTimestamp {
@@ -182,13 +186,13 @@ func (f *Formatter) Format(e *logrus.Entry) ([]byte, error) {
 		// Reporting expects it to be a part of the message so we append it
 		// instead.
 		if err, ok := ee.Context.Data["error"]; ok {
-			ee.Message = fmt.Sprintf("%s: %s", e.Message, err)
+			message = append(message, fmt.Sprintf("%v", err))
 			delete(ee.Context.Data, "error")
 		}
 
 		// If we supplied a stack trace, we can append it to the message
 		if st, ok := ee.Context.Data["stackTrace"]; ok {
-			ee.Message = fmt.Sprintf("%s: %s", e.Message, st)
+			message = append(message, fmt.Sprintf("%v", st))
 			delete(ee.Context.Data, "stackTrace")
 		}
 
@@ -237,6 +241,8 @@ func (f *Formatter) Format(e *logrus.Entry) ([]byte, error) {
 			}
 		}
 	}
+
+	ee.Message = strings.Join(message, ": ")
 
 	b, err := json.Marshal(ee)
 	if err != nil {
