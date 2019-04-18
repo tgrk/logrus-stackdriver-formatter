@@ -10,7 +10,7 @@ import (
 
 // Logger is a gokit-compatible wrapper for logrus.Logger
 type Logger struct {
-	Logger *logrus.Entry
+	Logger *logrus.Logger
 }
 
 // NewStackdriverLogger creates a gokit-compatible logger
@@ -18,33 +18,18 @@ func NewStackdriverLogger(w io.Writer, opts ...Option) *Logger {
 	logger := logrus.New()
 	logger.SetFormatter(NewFormatter(opts...))
 	logger.SetOutput(w)
-	return &Logger{Logger: logrus.NewEntry(logger)}
+	return &Logger{Logger: logger}
 }
 
-// With returns a new contextual logger with keyvals prepended to those passed
-// to calls to Log. If logger is also a contextual logger, keyvals is appended
-// to the existing context.
-//
-// The returned Logger replaces all value elements (odd indexes) containing a
-// Valuer with their generated value for each call to its Log method.
-func With(logger *Logger, vals ...interface{}) *Logger {
-	if len(vals) == 0 {
-		return logger
-	}
-	logger.Logger = logger.Logger.WithFields(valsToFields(vals))
-	return logger
-}
-
-// WithFields appends fields to the Logger to be used on the
-// logrus logger when logging
-func (l *Logger) WithFields(f logrus.Fields) *Logger {
-	l.Logger = l.Logger.WithFields(f)
-	return l
+// NewEntry creates a new logrus entry
+func (l Logger) NewEntry(kvs ...interface{}) *logrus.Entry {
+	return logrus.NewEntry(l.Logger)
 }
 
 // Log creates a log event from keyvals, a variadic sequence of alternating
 // keys and values.
 func (l Logger) Log(kvs ...interface{}) error {
+	log := l.NewEntry()
 	severity, location := getLevelFromArgs(kvs...)
 	if location >= 0 {
 		kvs = append(kvs[:location], kvs[location+2:]...)
@@ -54,7 +39,7 @@ func (l Logger) Log(kvs ...interface{}) error {
 
 		kvs = append(kvs[:location], kvs[location+2:]...)
 	}
-	log := l.Logger.WithFields(valsToFields(kvs...))
+	log = log.WithFields(valsToFields(kvs...))
 	log.Log(severity, message)
 	return nil
 }
@@ -72,6 +57,9 @@ func getLevelFromArgs(kvs ...interface{}) (logrus.Level, int) {
 					}
 				}
 			}
+			if strings.ToLower(field) == "err" && i < len(kvs) {
+				return logrus.ErrorLevel, -1
+			}
 		}
 	}
 	return logrus.InfoLevel, -1
@@ -80,7 +68,7 @@ func getLevelFromArgs(kvs ...interface{}) (logrus.Level, int) {
 func getMessageFromArgs(kvs ...interface{}) (string, int) {
 	for i, k := range kvs {
 		if field, ok := k.(string); ok {
-			if field == "message" && i < len(kvs) {
+			if field == "message" || field == "err" && i < len(kvs) {
 				if msg, ok := kvs[i+1].(string); ok {
 					return msg, i
 				}

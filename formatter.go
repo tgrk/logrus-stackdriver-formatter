@@ -3,6 +3,7 @@ package stackdriver
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -64,6 +65,7 @@ type Formatter struct {
 	Version       string
 	StackSkip     []string
 	SkipTimestamp bool
+	RegexSkip     string
 }
 
 // Option lets you configure the Formatter.
@@ -87,6 +89,13 @@ func WithVersion(v string) Option {
 func WithStackSkip(v string) Option {
 	return func(f *Formatter) {
 		f.StackSkip = append(f.StackSkip, v)
+	}
+}
+
+// WithRegexSkip lets you configure which functions or packages should be skipped for locating the error.
+func WithRegexSkip(v string) Option {
+	return func(f *Formatter) {
+		f.RegexSkip = v
 	}
 }
 
@@ -121,6 +130,11 @@ func (f *Formatter) errorOrigin() (stack.Call, error) {
 		return false
 	}
 
+	var r *regexp.Regexp
+	if len(f.RegexSkip) != 0 {
+		r = regexp.MustCompile(f.RegexSkip)
+	}
+
 	for i := 0; ; i++ {
 		c := stack.Caller(i)
 		// ErrNoFunc indicates we're over traversing the stack.
@@ -131,7 +145,7 @@ func (f *Formatter) errorOrigin() (stack.Call, error) {
 		// Remove vendoring from package path.
 		parts := strings.SplitN(pkg, "/vendor/", 2)
 		pkg = parts[len(parts)-1]
-		if !skip(pkg) {
+		if !skip(pkg) && (r == nil || !r.MatchString(c.Frame().Function)) {
 			return c, nil
 		}
 	}
@@ -170,6 +184,12 @@ func (f *Formatter) Format(e *logrus.Entry) ([]byte, error) {
 		if err, ok := ee.Context.Data["error"]; ok {
 			ee.Message = fmt.Sprintf("%s: %s", e.Message, err)
 			delete(ee.Context.Data, "error")
+		}
+
+		// If we supplied a stack trace, we can append it to the message
+		if st, ok := ee.Context.Data["stackTrace"]; ok {
+			ee.Message = fmt.Sprintf("%s: %s", e.Message, st)
+			delete(ee.Context.Data, "stackTrace")
 		}
 
 		// As a convenience, when using supplying the httpRequest field, it
