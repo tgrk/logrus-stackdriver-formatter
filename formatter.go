@@ -242,7 +242,7 @@ func (f *Formatter) Format(e *logrus.Entry) ([]byte, error) {
 		}
 	}
 
-	ee.Message = strings.Join(message, ": ")
+	ee.Message = strings.Join(message, "\n")
 
 	b, err := json.Marshal(ee)
 	if err != nil {
