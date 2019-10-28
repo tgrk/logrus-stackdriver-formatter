@@ -37,13 +37,13 @@ func TestStackSkip(t *testing.T) {
 		"context": map[string]interface{}{
 			"reportLocation": map[string]interface{}{
 				"file":     "testing/testing.go",
-				"line":     827.0,
+				"line":     909.0,
 				"function": "tRunner",
 			},
 		},
 		"sourceLocation": map[string]interface{}{
 			"file":     "testing/testing.go",
-			"line":     827.0,
+			"line":     909.0,
 			"function": "tRunner",
 		},
 	}
