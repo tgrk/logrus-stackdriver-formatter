@@ -154,7 +154,7 @@ func NewFormatter(options ...Option) *Formatter {
 func (f *Formatter) errorOrigin() (stack.Call, error) {
 	skip := func(pkg string) bool {
 		for _, skip := range f.StackSkip {
-			if pkg == skip {
+			if strings.Contains(pkg, skip) {
 				return true
 			}
 		}
@@ -165,7 +165,7 @@ func (f *Formatter) errorOrigin() (stack.Call, error) {
 	if len(f.RegexSkip) != 0 {
 		r = regexp.MustCompile(f.RegexSkip)
 	}
-
+	// We could start at 2 to skip this call and our caller's call, but they are filtered by package
 	for i := 0; ; i++ {
 		c := stack.Caller(i)
 		// ErrNoFunc indicates we're over traversing the stack.
