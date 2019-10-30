@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"testing"
+	"github.com/google/go-cmp/cmp"
 
-	"github.com/TV4/logrus-stackdriver-formatter/test"
+	"github.com/StevenACoffman/logrus-stackdriver-formatter/test"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
@@ -18,7 +19,8 @@ func TestStackSkip(t *testing.T) {
 	logger.Formatter = NewFormatter(
 		WithService("test"),
 		WithVersion("0.1"),
-		WithStackSkip("github.com/TV4/logrus-stackdriver-formatter/test"),
+		WithStackSkip("github.com/StevenACoffman/logrus-stackdriver-formatter/test"),
+		WithSkipTimestamp(),
 	)
 
 	mylog := test.LogWrapper{
@@ -36,9 +38,9 @@ func TestStackSkip(t *testing.T) {
 		},
 		"context": map[string]interface{}{
 			"reportLocation": map[string]interface{}{
-				"file":     "testing/testing.go",
-				"line":     909.0,
-				"function": "tRunner",
+				"filePath":     "github.com/StevenACoffman/logrus-stackdriver-formatter/stackskip_test.go",
+				"lineNumber":   30.0,
+				"functionName": "TestStackSkip",
 			},
 		},
 		"sourceLocation": map[string]interface{}{
@@ -48,9 +50,8 @@ func TestStackSkip(t *testing.T) {
 		},
 	}
 
-	got, err := json.Marshal(want)
-	if err != nil {
-		t.Error(err)
+	if !cmp.Equal(got, want) {
+		cmp.Diff(got, want)
 	}
 	assert.JSONEq(t, out.String(), string(got))
 }
