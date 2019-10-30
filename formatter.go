@@ -53,6 +53,7 @@ type Context struct {
 	PubSubRequest  map[string]interface{} `json:"pubSubRequest,omitempty"`
 	GRPCRequest    map[string]interface{} `json:"grpcRequest,omitempty"`
 }
+
 // HTTPRequest defines details of a request and response to append to a log.
 type HTTPRequest struct {
 	RequestMethod                  string `json:"requestMethod,omitempty"`
@@ -71,6 +72,7 @@ type HTTPRequest struct {
 	CacheFillBytes                 string `json:"cacheFillBytes,omitempty"`
 	Protocol                       string `json:"protocol,omitempty"`
 }
+
 // Entry stores a log entry.
 type Entry struct {
 	Timestamp      string          `json:"timestamp,omitempty"`
@@ -198,6 +200,7 @@ func replaceErrors(source logrus.Fields) logrus.Fields {
 	return data
 }
 
+
 // ToEntry formats a logrus entry to a stackdriver entry.
 func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 	severity := levelsToSeverity[e.Level]
@@ -214,6 +217,7 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 	if val, ok := e.Data["trace"]; ok {
 		ee.Trace = val.(string)
 	}
+
 	if len(e.Message) > 0 {
 		message = append(message, e.Message)
 	}
@@ -300,10 +304,18 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 					LineNumber:   int(lineNumber),
 					FunctionName: fmt.Sprintf("%n", c),
 				}
+
 			}
 		}
 	}
 	ee.Message = strings.Join(message, "\n")
+	return ee, nil
+}
+
+// Format formats a logrus entry according to the Stackdriver specifications.
+func (f *Formatter) Format(e *logrus.Entry) ([]byte, error) {
+	ee, _ := f.ToEntry(e)
+
 	return ee, nil
 }
 

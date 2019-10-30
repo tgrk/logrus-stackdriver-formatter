@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"testing"
-
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/StevenACoffman/logrus-stackdriver-formatter/test"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestStackSkip(t *testing.T) {
@@ -29,9 +29,6 @@ func TestStackSkip(t *testing.T) {
 
 	mylog.Error("my log entry")
 
-	var got map[string]interface{}
-	json.Unmarshal(out.Bytes(), &got)
-
 	want := map[string]interface{}{
 		"severity": "ERROR",
 		"message":  "my log entry",
@@ -46,9 +43,15 @@ func TestStackSkip(t *testing.T) {
 				"functionName": "TestStackSkip",
 			},
 		},
+		"sourceLocation": map[string]interface{}{
+			"file":     "testing/testing.go",
+			"line":     909.0,
+			"function": "tRunner",
+		},
 	}
 
 	if !cmp.Equal(got, want) {
 		cmp.Diff(got, want)
 	}
+	assert.JSONEq(t, out.String(), string(got))
 }
