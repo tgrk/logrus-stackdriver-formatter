@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	stackdriver "github.com/pbabbicola/logrus-stackdriver-formatter"
+	stackdriver "github.com/StevenACoffman/logrus-stackdriver-formatter"
 
 	"github.com/sirupsen/logrus"
 )
@@ -69,7 +69,7 @@ var formatterTests = []struct {
 					"foo": "bar",
 				},
 				"reportLocation": map[string]interface{}{
-					"filePath":     "github.com/pbabbicola/logrus-stackdriver-formatter/formatter_test.go",
+					"filePath":     "github.com/StevenACoffman/logrus-stackdriver-formatter/formatter_test.go",
 					"lineNumber":   58.0,
 					"functionName": "glob..func2",
 				},
@@ -95,7 +95,7 @@ var formatterTests = []struct {
 					"foo": "bar",
 				},
 				"reportLocation": map[string]interface{}{
-					"filePath":     "github.com/pbabbicola/logrus-stackdriver-formatter/formatter_test.go",
+					"filePath":     "github.com/StevenACoffman/logrus-stackdriver-formatter/formatter_test.go",
 					"lineNumber":   84.0,
 					"functionName": "glob..func3",
 				},
@@ -128,7 +128,7 @@ var formatterTests = []struct {
 					"method": "GET",
 				},
 				"reportLocation": map[string]interface{}{
-					"filePath":     "github.com/pbabbicola/logrus-stackdriver-formatter/formatter_test.go",
+					"filePath":     "github.com/StevenACoffman/logrus-stackdriver-formatter/formatter_test.go",
 					"lineNumber":   114.0,
 					"functionName": "glob..func4",
 				},

@@ -4,7 +4,7 @@ import (
 	"os"
 	"strconv"
 
-	stackdriver "github.com/pbabbicola/logrus-stackdriver-formatter"
+	stackdriver "github.com/StevenACoffman/logrus-stackdriver-formatter"
 	"github.com/sirupsen/logrus"
 )
 
@@ -26,5 +26,5 @@ func ExampleLogError() {
 
 	// Output:
 	// {"message":"application up and running","severity":"INFO","context":{}}
-	// {"serviceContext":{"service":"test-service","version":"v0.1.0"},"message":"unable to parse integer: strconv.ParseInt: parsing \"text\": invalid syntax","severity":"ERROR","context":{"reportLocation":{"filePath":"github.com/pbabbicola/logrus-stackdriver-formatter/example_test.go","lineNumber":24,"functionName":"ExampleLogError"}}}
+	// {"serviceContext":{"service":"test-service","version":"v0.1.0"},"message":"unable to parse integer: strconv.ParseInt: parsing \"text\": invalid syntax","severity":"ERROR","context":{"reportLocation":{"filePath":"github.com/StevenACoffman/logrus-stackdriver-formatter/example_test.go","lineNumber":24,"functionName":"ExampleLogError"}}}
 }

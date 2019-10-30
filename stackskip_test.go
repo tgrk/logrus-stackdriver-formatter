@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/pbabbicola/logrus-stackdriver-formatter/test"
+	"github.com/StevenACoffman/logrus-stackdriver-formatter/test"
 	"github.com/sirupsen/logrus"
 )
 
@@ -19,7 +19,7 @@ func TestStackSkip(t *testing.T) {
 	logger.Formatter = NewFormatter(
 		WithService("test"),
 		WithVersion("0.1"),
-		WithStackSkip("github.com/pbabbicola/logrus-stackdriver-formatter/test"),
+		WithStackSkip("github.com/StevenACoffman/logrus-stackdriver-formatter/test"),
 		WithSkipTimestamp(),
 	)
 
@@ -41,7 +41,7 @@ func TestStackSkip(t *testing.T) {
 		},
 		"context": map[string]interface{}{
 			"reportLocation": map[string]interface{}{
-				"filePath":     "github.com/pbabbicola/logrus-stackdriver-formatter/stackskip_test.go",
+				"filePath":     "github.com/StevenACoffman/logrus-stackdriver-formatter/stackskip_test.go",
 				"lineNumber":   30.0,
 				"functionName": "TestStackSkip",
 			},

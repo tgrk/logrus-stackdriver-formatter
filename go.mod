@@ -1,4 +1,4 @@
-module github.com/pbabbicola/logrus-stackdriver-formatter
+module github.com/StevenACoffman/logrus-stackdriver-formatter
 
 go 1.12
 
