@@ -4,7 +4,7 @@ import (
 	"os"
 	"strconv"
 
-	stackdriver "github.com/TV4/logrus-stackdriver-formatter"
+	stackdriver "github.com/StevenACoffman/logrus-stackdriver-formatter"
 	"github.com/sirupsen/logrus"
 )
 
@@ -14,6 +14,7 @@ func ExampleLogError() {
 	logger.Formatter = stackdriver.NewFormatter(
 		stackdriver.WithService("test-service"),
 		stackdriver.WithVersion("v0.1.0"),
+		stackdriver.WithSkipTimestamp(),
 	)
 
 	logger.Info("application up and running")
@@ -25,5 +26,5 @@ func ExampleLogError() {
 
 	// Output:
 	// {"message":"application up and running","severity":"INFO","context":{}}
-	// {"serviceContext":{"service":"test-service","version":"v0.1.0"},"message":"unable to parse integer: strconv.ParseInt: parsing \"text\": invalid syntax","severity":"ERROR","context":{"reportLocation":{"filePath":"github.com/TV4/logrus-stackdriver-formatter/example_test.go","lineNumber":23,"functionName":"ExampleLogError"}}}
+	// {"serviceContext":{"service":"test-service","version":"v0.1.0"},"message":"unable to parse integer\nstrconv.ParseInt: parsing \"text\": invalid syntax","severity":"ERROR","context":{"reportLocation":{"file":"testing/example.go","line":121,"function":"runExample"}},"sourceLocation":{"file":"testing/example.go","line":121,"function":"runExample"}}
 }
