@@ -15,17 +15,17 @@ import (
 func TestFormatter(t *testing.T) {
 	for _, tt := range formatterTests {
 		t.Run(tt.name, func(t *testing.T) {
-		var out bytes.Buffer
+			var out bytes.Buffer
 
-		logger := logrus.New()
-		logger.Out = &out
-		logger.Formatter = stackdriver.NewFormatter(
-			stackdriver.WithService("test"),
-			stackdriver.WithVersion("0.1"),
-			stackdriver.WithSkipTimestamp(),
-		)
+			logger := logrus.New()
+			logger.Out = &out
+			logger.Formatter = stackdriver.NewFormatter(
+				stackdriver.WithService("test"),
+				stackdriver.WithVersion("0.1"),
+				stackdriver.WithSkipTimestamp(),
+			)
 
-		tt.run(logger)
+			tt.run(logger)
 
 			got, err := json.Marshal(tt.out)
 			if err != nil {
@@ -37,8 +37,8 @@ func TestFormatter(t *testing.T) {
 }
 
 var formatterTests = []struct {
-	run func(*logrus.Logger)
-	out map[string]interface{}
+	run  func(*logrus.Logger)
+	out  map[string]interface{}
 	name string
 }{
 	{
@@ -139,8 +139,8 @@ var formatterTests = []struct {
 			"context": map[string]interface{}{
 				"data": map[string]interface{}{
 					"foo": "bar",
-				"httpRequest": map[string]interface{}{
-					"requestMethod": "GET",
+					"httpRequest": map[string]interface{}{
+						"requestMethod": "GET",
 					},
 				},
 				"reportLocation": map[string]interface{}{

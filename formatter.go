@@ -53,6 +53,7 @@ type Context struct {
 	PubSubRequest  map[string]interface{} `json:"pubSubRequest,omitempty"`
 	GRPCRequest    map[string]interface{} `json:"grpcRequest,omitempty"`
 }
+
 // HTTPRequest defines details of a request and response to append to a log.
 type HTTPRequest struct {
 	RequestMethod                  string `json:"requestMethod,omitempty"`
@@ -71,6 +72,7 @@ type HTTPRequest struct {
 	CacheFillBytes                 string `json:"cacheFillBytes,omitempty"`
 	Protocol                       string `json:"protocol,omitempty"`
 }
+
 // Entry stores a log entry.
 type Entry struct {
 	Timestamp      string          `json:"timestamp,omitempty"`
@@ -86,7 +88,7 @@ type Entry struct {
 type Formatter struct {
 	Service       string
 	Version       string
-	ProjectID string
+	ProjectID     string
 	StackSkip     []string
 	SkipTimestamp bool
 	RegexSkip     string
