@@ -88,7 +88,7 @@ type Entry struct {
 type Formatter struct {
 	Service       string
 	Version       string
-	ProjectID string
+	ProjectID     string
 	StackSkip     []string
 	SkipTimestamp bool
 	RegexSkip     string
