@@ -316,13 +316,6 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 func (f *Formatter) Format(e *logrus.Entry) ([]byte, error) {
 	ee, _ := f.ToEntry(e)
 
-	return ee, nil
-}
-
-// Format formats a logrus entry according to the Stackdriver specifications.
-func (f *Formatter) Format(e *logrus.Entry) ([]byte, error) {
-	ee, _ := f.ToEntry(e)
-
 	b, err := json.Marshal(ee)
 	if err != nil {
 		return nil, err

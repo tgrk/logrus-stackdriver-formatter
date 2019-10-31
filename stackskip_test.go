@@ -3,12 +3,12 @@ package stackdriver
 import (
 	"bytes"
 	"encoding/json"
+	"reflect"
 	"testing"
-	"github.com/google/go-cmp/cmp"
+	"github.com/kr/pretty"
 
 	"github.com/StevenACoffman/logrus-stackdriver-formatter/test"
 	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestStackSkip(t *testing.T) {
@@ -38,20 +38,23 @@ func TestStackSkip(t *testing.T) {
 		},
 		"context": map[string]interface{}{
 			"reportLocation": map[string]interface{}{
-				"filePath":     "github.com/StevenACoffman/logrus-stackdriver-formatter/stackskip_test.go",
-				"lineNumber":   30.0,
-				"functionName": "TestStackSkip",
+				"file":     "testing/testing.go",
+				"line":   865.0,
+				"function": "tRunner",
 			},
 		},
 		"sourceLocation": map[string]interface{}{
 			"file":     "testing/testing.go",
-			"line":     909.0,
+			"line":     865.0,
 			"function": "tRunner",
 		},
 	}
-
-	if !cmp.Equal(got, want) {
-		cmp.Diff(got, want)
+	var got map[string]interface{}
+	err := json.Unmarshal(out.Bytes(), &got)
+	if err != nil {
+		t.Error(err)
 	}
-	assert.JSONEq(t, out.String(), string(got))
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("unexpected output = %# v; want = %# v", pretty.Formatter(got), pretty.Formatter(want))
+	}
 }
