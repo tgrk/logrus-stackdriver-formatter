@@ -8,27 +8,27 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// Logger is a gokit-compatible wrapper for logrus.Logger
-type Logger struct {
+// LogrusGoKitLogger is a gokit-compatible wrapper for logrus.LogrusGoKitLogger
+type LogrusGoKitLogger struct {
 	Logger *logrus.Logger
 }
 
 // NewStackdriverLogger creates a gokit-compatible logger
-func NewStackdriverLogger(w io.Writer, opts ...Option) *Logger {
+func NewStackdriverLogger(w io.Writer, opts ...Option) *LogrusGoKitLogger {
 	logger := logrus.New()
 	logger.SetFormatter(NewFormatter(opts...))
 	logger.SetOutput(w)
-	return &Logger{Logger: logger}
+	return &LogrusGoKitLogger{Logger: logger}
 }
 
 // NewEntry creates a new logrus entry
-func (l Logger) NewEntry(kvs ...interface{}) *logrus.Entry {
+func (l LogrusGoKitLogger) NewEntry(kvs ...interface{}) *logrus.Entry {
 	return logrus.NewEntry(l.Logger)
 }
 
 // Log creates a log event from keyvals, a variadic sequence of alternating
 // keys and values.
-func (l Logger) Log(kvs ...interface{}) error {
+func (l LogrusGoKitLogger) Log(kvs ...interface{}) error {
 	log := l.NewEntry()
 	severity, location := getLevelFromArgs(kvs...)
 	if location >= 0 {

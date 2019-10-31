@@ -200,6 +200,7 @@ func replaceErrors(source logrus.Fields) logrus.Fields {
 	return data
 }
 
+
 // ToEntry formats a logrus entry to a stackdriver entry.
 func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 	severity := levelsToSeverity[e.Level]
@@ -216,6 +217,7 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 	if val, ok := e.Data["trace"]; ok {
 		ee.Trace = val.(string)
 	}
+
 	if len(e.Message) > 0 {
 		message = append(message, e.Message)
 	}
@@ -302,6 +304,7 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 					LineNumber:   int(lineNumber),
 					FunctionName: fmt.Sprintf("%n", c),
 				}
+
 			}
 		}
 	}

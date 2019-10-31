@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	stackdriver "github.com/StevenACoffman/logrus-stackdriver-formatter"
-
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
@@ -37,8 +36,8 @@ func TestFormatter(t *testing.T) {
 }
 
 var formatterTests = []struct {
-	run  func(*logrus.Logger)
-	out  map[string]interface{}
+	run func(*logrus.Logger)
+	out map[string]interface{}
 	name string
 }{
 	{

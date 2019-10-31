@@ -3,9 +3,9 @@ package stackdriver
 import (
 	"bytes"
 	"encoding/json"
+	"reflect"
 	"testing"
-
-	"github.com/google/go-cmp/cmp"
+	"github.com/kr/pretty"
 
 	"github.com/StevenACoffman/logrus-stackdriver-formatter/test"
 	"github.com/sirupsen/logrus"
@@ -29,9 +29,6 @@ func TestStackSkip(t *testing.T) {
 
 	mylog.Error("my log entry")
 
-	var got map[string]interface{}
-	json.Unmarshal(out.Bytes(), &got)
-
 	want := map[string]interface{}{
 		"severity": "ERROR",
 		"message":  "my log entry",
@@ -41,14 +38,23 @@ func TestStackSkip(t *testing.T) {
 		},
 		"context": map[string]interface{}{
 			"reportLocation": map[string]interface{}{
-				"filePath":     "github.com/StevenACoffman/logrus-stackdriver-formatter/stackskip_test.go",
-				"lineNumber":   30.0,
-				"functionName": "TestStackSkip",
+				"file":     "testing/testing.go",
+				"line":   865.0,
+				"function": "tRunner",
 			},
 		},
+		"sourceLocation": map[string]interface{}{
+			"file":     "testing/testing.go",
+			"line":     865.0,
+			"function": "tRunner",
+		},
 	}
-
-	if !cmp.Equal(got, want) {
-		cmp.Diff(got, want)
+	var got map[string]interface{}
+	err := json.Unmarshal(out.Bytes(), &got)
+	if err != nil {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("unexpected output = %# v; want = %# v", pretty.Formatter(got), pretty.Formatter(want))
 	}
 }
