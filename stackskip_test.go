@@ -3,9 +3,9 @@ package stackdriver
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/kr/pretty"
 	"reflect"
 	"testing"
-	"github.com/kr/pretty"
 
 	"github.com/StevenACoffman/logrus-stackdriver-formatter/test"
 	"github.com/sirupsen/logrus"
@@ -39,7 +39,7 @@ func TestStackSkip(t *testing.T) {
 		"context": map[string]interface{}{
 			"reportLocation": map[string]interface{}{
 				"file":     "testing/testing.go",
-				"line":   865.0,
+				"line":     865.0,
 				"function": "tRunner",
 			},
 		},

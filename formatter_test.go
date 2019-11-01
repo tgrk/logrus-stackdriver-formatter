@@ -36,8 +36,8 @@ func TestFormatter(t *testing.T) {
 }
 
 var formatterTests = []struct {
-	run func(*logrus.Logger)
-	out map[string]interface{}
+	run  func(*logrus.Logger)
+	out  map[string]interface{}
 	name string
 }{
 	{

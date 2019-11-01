@@ -1,10 +1,12 @@
+// Package stackdriver provides an adapter to the
+// go-kit log.Logger interface.
 package stackdriver
 
 import (
+	"fmt"
 	"io"
-	"strings"
 
-	"github.com/go-kit/kit/log"
+	gokitlog "github.com/go-kit/kit/log"
 	"github.com/sirupsen/logrus"
 )
 
@@ -14,12 +16,19 @@ type LogrusGoKitLogger struct {
 }
 
 // NewStackdriverLogger creates a gokit-compatible logger
-func NewStackdriverLogger(w io.Writer, opts ...Option) *LogrusGoKitLogger {
+func NewLogrusGoKitLogger(w io.Writer, opts ...Option) *LogrusGoKitLogger {
 	logger := logrus.New()
 	logger.SetFormatter(NewFormatter(opts...))
 	logger.SetOutput(w)
 	return &LogrusGoKitLogger{Logger: logger}
 }
+
+const msgKey = "msg"
+const messageKey = "message"
+const errKey = "err"
+const errorKey = "error"
+const severityKey = "severity"
+const levelKey = "level"
 
 // NewEntry creates a new logrus entry
 func (l LogrusGoKitLogger) NewEntry(kvs ...interface{}) *logrus.Entry {
@@ -27,70 +36,61 @@ func (l LogrusGoKitLogger) NewEntry(kvs ...interface{}) *logrus.Entry {
 }
 
 // Log creates a log event from keyvals, a variadic sequence of alternating
-// keys and values.
-func (l LogrusGoKitLogger) Log(kvs ...interface{}) error {
-	log := l.NewEntry()
-	severity, location := getLevelFromArgs(kvs...)
-	if location >= 0 {
-		kvs = append(kvs[:location], kvs[location+2:]...)
-	}
-	message, location := getMessageFromArgs(kvs...)
-	if location >= 0 {
-		kvs = append(kvs[:location], kvs[location+2:]...)
-	}
-	log = log.WithFields(valsToFields(kvs...))
-	log.Log(severity, message)
+// keys and values. It implements the fundamental go-kit Logger interface
+func (l LogrusGoKitLogger) Log(keyvals ...interface{}) error {
+	entry := l.NewEntry()
+	fields, level, msg := extractLogElements(keyvals...)
+
+	entry = entry.WithFields(fields)
+	entry.Log(level, msg)
+
 	return nil
 }
 
-func getLevelFromArgs(kvs ...interface{}) (logrus.Level, int) {
-	for i, k := range kvs {
-		if field, ok := k.(string); ok {
-			if strings.ToLower(field) == "severity" && i < len(kvs) {
-				if lvl, ok := kvs[i+1].(logrus.Level); ok {
-					return lvl, i
-				}
-				if v, ok := kvs[i+1].(string); ok {
-					if lvl, err := logrus.ParseLevel(v); err == nil {
-						return lvl, i
-					}
-				}
-			}
-			if strings.ToLower(field) == "err" && i < len(kvs) {
-				return logrus.ErrorLevel, -1
-			}
-		}
-	}
-	return logrus.InfoLevel, -1
-}
+// extractLogElements iterates through the keyvals to form well
+// structuredkey:value pairs that Logrus expects. It also checks for keys with
+// special meaning like "msg" and "level" to format the log entry
+func extractLogElements(keyVals ...interface{}) (fields logrus.Fields, level logrus.Level, msg string) {
+	msg = ""
+	fields = logrus.Fields{}
+	level = logrus.DebugLevel
 
-func getMessageFromArgs(kvs ...interface{}) (string, int) {
-	for i, k := range kvs {
-		if field, ok := k.(string); ok {
-			if (field == "message" || field == "err" || field == "error") && i < len(kvs) {
-				if msg, ok := kvs[i+1].(string); ok {
-					return msg, i
-				}
-				if msg, ok := kvs[i+1].(error); ok {
-					return msg.Error(), i
-				}
-			}
-		}
-	}
-	return "", -1
-}
+	for i := 0; i < len(keyVals); i += 2 {
+		fieldKey := fmt.Sprint(keyVals[i])
+		if i+1 < len(keyVals) {
 
-func valsToFields(vals ...interface{}) logrus.Fields {
-	kvs := make([]interface{}, len(vals))
-	copy(kvs, vals)
-	if len(vals)%2 != 0 {
-		kvs = append(kvs, log.ErrMissingValue)
-	}
-	fields := logrus.Fields{}
-	for i := 0; i < len(kvs)-1; i = i + 2 {
-		if k, ok := kvs[i].(string); ok {
-			fields[k] = kvs[i+1]
+			fieldValue := fmt.Sprint(keyVals[i+1])
+			if (fieldKey == msgKey || fieldKey == messageKey) && msg == "" {
+				// if this is a "msg" key, store it separately so we can use it as the
+				// main log message
+				msg = fieldValue
+			} else if (fieldKey == errKey || fieldKey == errorKey) {
+				// if this is a "err" key, we should use the error message as
+				// the main message and promote the level to Error
+				err := fieldValue
+				if err != "" {
+					msg = err
+					level = logrus.ErrorLevel
+				}
+			} else if fieldKey == levelKey || fieldKey == severityKey {
+				// if this is a "level" key, it means GoKit logger is giving us
+				// a hint to the logging level
+				levelStr := fieldValue
+				parsedLevel, err := logrus.ParseLevel(levelStr)
+				if err != nil || level < parsedLevel {
+					level = logrus.ErrorLevel
+					fields[levelKey] = levelStr
+				} else {
+					level = parsedLevel
+				}
+			} else {
+				// this is just regular log data, add it as a key:value pair
+				fields[fieldKey] = keyVals[i+1]
+			}
+		} else {
+			// odd pair key, with no matching value
+			fields[fieldKey] = gokitlog.ErrMissingValue
 		}
 	}
-	return fields
+	return
 }
