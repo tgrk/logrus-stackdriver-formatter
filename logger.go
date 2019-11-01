@@ -9,7 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// LogrusGoKitLogger is the concrete implementation of the logging wrapper
+// LogrusGoKitLogger is a gokit-compatible wrapper for logrus.LogrusGoKitLogger
 type LogrusGoKitLogger struct {
 	logrusLogger
 }
@@ -18,12 +18,10 @@ type logrusLogger interface {
 	WithFields(fields logrus.Fields) *logrus.Entry
 }
 
-// NewLogrusGoKitLogger wraps a logrus instance and implements the GoKit Logger interface
+// NewStackdriverLogger creates a gokit-compatible logger
 func NewLogrusGoKitLogger(logger logrusLogger) *LogrusGoKitLogger {
 	return &LogrusGoKitLogger{logger}
 }
-
-
 
 const msgKey = "msg"
 const errKey = "err"
