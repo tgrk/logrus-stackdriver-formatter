@@ -1,11 +1,12 @@
 # logrus-stackdriver-formatter
 
-[![Build Status](https://travis-ci.org/TV4/logrus-stackdriver-formatter.svg?branch=master)](https://travis-ci.org/TV4/logrus-stackdriver-formatter)
-[![Go Report Card](https://goreportcard.com/badge/github.com/TV4/logrus-stackdriver-formatter)](https://goreportcard.com/report/github.com/TV4/logrus-stackdriver-formatter)
-[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/TV4/logrus-stackdriver-formatter)
-[![License MIT](https://img.shields.io/badge/license-MIT-lightgrey.svg?style=flat)](https://github.com/TV4/logrus-stackdriver-formatter#license)
+[![Go Report Card](https://goreportcard.com/badge/github.com/StevenACoffman/logrus-stackdriver-formatter)](https://goreportcard.com/report/github.com/StevenACoffman/logrus-stackdriver-formatter)
+[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/StevenACoffman/logrus-stackdriver-formatter)
+[![License MIT](https://img.shields.io/badge/license-MIT-lightgrey.svg?style=flat)](https://github.com/StevenACoffman/logrus-stackdriver-formatter#license)
 
-[logrus](https://github.com/sirupsen/logrus) formatter for Stackdriver.
+Logrus-stackdriver-formatter provides:
++ [logrus](https://github.com/sirupsen/logrus) formatter for Stackdriver.
++ [go-kit log](https://github.com/go-kit/kit/tree/master/log) adapter for the above.
 
 In addition to supporting level-based logging to Stackdriver, for Error, Fatal and Panic levels it will append error context for [Error Reporting](https://cloud.google.com/error-reporting/).
 
@@ -15,14 +16,14 @@ In addition to supporting level-based logging to Stackdriver, for Error, Fatal a
 go get -u github.com/TV4/logrus-stackdriver-formatter
 ```
 
-## Usage
+### Logrus Usage
 
 ```go
 package main
 
 import (
     "github.com/sirupsen/logrus"
-    stackdriver "github.com/TV4/logrus-stackdriver-formatter"
+    stackdriver "github.com/StevenACoffman/logrus-stackdriver-formatter"
 )
 
 var log = logrus.New()
@@ -50,15 +51,15 @@ Here's a sample entry (prettified) from the example:
   "severity": "ERROR",
   "context": {
     "reportLocation": {
-      "filePath": "github.com/TV4/logrus-stackdriver-formatter/example_test.go",
-      "lineNumber": 21,
-      "functionName": "ExampleLogError"
+      "file": "github.com/StevenACoffman/logrus-stackdriver-formatter/example_test.go",
+      "line": 21,
+      "function": "ExampleLogError"
     }
   }
 }
 ```
 
-## HTTP request context
+### HTTP request context
 
 If you'd like to add additional context like the `httpRequest`, here's a convenience function for creating a HTTP logger:
 
@@ -84,3 +85,86 @@ func handler(w http.ResponseWriter, r *http.Request) {
     httplog.Infof("Logging with HTTP request context")
 }
 ```
+
+### Go-kit Log Adapter
+
+Go-kit log is wrapped to encode conventions, enforce type-safety, provide leveled
+logging, and so on. It can be used for both typical application log events,
+and log-structured data streams.
+
+
+### Typical application logging
+
+```go
+import (
+	"os"
+	logadapter "github.com/StevenACoffman/logrus-stackdriver-formatter"
+	kitlog "github.com/go-kit/kit/log"
+)
+
+func main() {
+	w := kitlog.NewSyncWriter(os.Stderr)
+	logger := logadapter.InitLogrusGoKitLogger(w)
+	logger.Log("question", "what is the meaning of life?", "answer", 42)
+
+	// Output:
+	// question="what is the meaning of life?" answer=42
+}
+```
+
+### Contextual Loggers
+
+```go
+import (
+	"os"
+	logadapter "github.com/StevenACoffman/logrus-stackdriver-formatter"
+	kitlog "github.com/go-kit/kit/log"
+)
+
+func main() {
+	logger := logadapter.InitLogrusGoKitLogger(kitlog.NewSyncWriter(os.Stderr))
+	logger = kitlog.With(logger, "instance_id", 123)
+
+	logger.Log("msg", "starting")
+	NewWorker(kitlog.With(logger, "component", "worker")).Run()
+	NewSlacker(kitlog.With(logger, "component", "slacker")).Run()
+}
+
+// Output:
+// instance_id=123 msg=starting
+// instance_id=123 component=worker msg=running
+// instance_id=123 component=slacker msg=running
+```
+
+## Enhancements
+
+go-kit's `package log` is centered on the one-method Logger interface.
+
+```go
+type Logger interface {
+	Log(keyvals ...interface{}) error
+}
+```
+
+This interface, and its supporting code like is the product of much iteration
+and evaluation. For more details on the evolution of the Logger interface,
+see [The Hunt for a Logger Interface](http://go-talks.appspot.com/github.com/ChrisHines/talks/structured-logging/structured-logging.slide#1),
+a talk by [Chris Hines](https://github.com/ChrisHines).
+Also, please see
+[#63](https://github.com/go-kit/kit/issues/63),
+[#76](https://github.com/go-kit/kit/pull/76),
+[#131](https://github.com/go-kit/kit/issues/131),
+[#157](https://github.com/go-kit/kit/pull/157),
+[#164](https://github.com/go-kit/kit/issues/164), and
+[#252](https://github.com/go-kit/kit/pull/252)
+to review historical conversations about package log and the Logger interface.
+
+Value-add packages and suggestions,
+like improvements to [the leveled logger](https://godoc.org/github.com/go-kit/kit/log/level),
+are of course welcome. Good proposals should
+
+- Be composable with [contextual loggers](https://godoc.org/github.com/go-kit/kit/log#With),
+- Not break the behavior of [log.Caller](https://godoc.org/github.com/go-kit/kit/log#Caller) in any wrapped contextual loggers, and
+- Be friendly to packages that accept only an unadorned log.Logger.
+ber-common/zap](https://github.com/uber-common/zap), a zero-alloc logging library, includes a comparison with kit/log
+

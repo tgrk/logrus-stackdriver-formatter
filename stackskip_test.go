@@ -19,7 +19,7 @@ func TestStackSkip(t *testing.T) {
 	logger.Formatter = NewFormatter(
 		WithService("test"),
 		WithVersion("0.1"),
-		WithStackSkip("github.com/StevenACoffman/logrus-stackdriver-formatter/test"),
+		WithStackSkip("github.com/StevenACoffman/logrus-stackdriver-formatter"),
 		WithSkipTimestamp(),
 	)
 
