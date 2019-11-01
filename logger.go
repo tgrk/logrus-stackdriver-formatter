@@ -1,6 +1,6 @@
 // Package stackdriver provides an adapter to the
 // go-kit log.Logger interface.
-package stackdriver
+package logadapter
 
 import (
 	"fmt"

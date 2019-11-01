@@ -1,4 +1,4 @@
-package stackdriver_example
+package logadapter_example
 
 import (
 	"os"

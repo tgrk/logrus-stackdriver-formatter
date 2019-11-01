@@ -1,4 +1,4 @@
-package stackdriver_test
+package logadapter
 
 import (
 	"bytes"

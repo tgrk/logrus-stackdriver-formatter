@@ -1,6 +1,7 @@
-package stackdriver
+package logadapter
 
 import (
+	"io"
 	"os"
 
 	"github.com/sirupsen/logrus"
@@ -16,4 +17,12 @@ func InitLogging() *logrus.Logger {
 	log.Info("Logger successfully initialised!")
 
 	return log
+}
+
+// InitLogrusGoKitLogger initializes a go kit logger to send things to stackdriver.
+func InitLogrusGoKitLogger(w io.Writer, opts ...Option) *LogrusGoKitLogger {
+	logger := logrus.New()
+	logger.SetFormatter(NewFormatter(opts...))
+	logger.SetOutput(w)
+	return NewLogrusGoKitLogger(logger)
 }
