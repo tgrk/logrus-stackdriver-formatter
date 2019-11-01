@@ -1,4 +1,4 @@
-package logadapter
+package logadapter_test
 
 import (
 	"bytes"
@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	stackdriver "github.com/StevenACoffman/logrus-stackdriver-formatter"
+	logadapter "github.com/StevenACoffman/logrus-stackdriver-formatter"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
@@ -18,10 +18,10 @@ func TestFormatter(t *testing.T) {
 
 			logger := logrus.New()
 			logger.Out = &out
-			logger.Formatter = stackdriver.NewFormatter(
-				stackdriver.WithService("test"),
-				stackdriver.WithVersion("0.1"),
-				stackdriver.WithSkipTimestamp(),
+			logger.Formatter = logadapter.NewFormatter(
+				logadapter.WithService("test"),
+				logadapter.WithVersion("0.1"),
+				logadapter.WithSkipTimestamp(),
 			)
 
 			tt.run(logger)
