@@ -4,7 +4,6 @@ package stackdriver
 
 import (
 	"fmt"
-	"io"
 
 	gokitlog "github.com/go-kit/kit/log"
 	"github.com/sirupsen/logrus"
@@ -12,15 +11,16 @@ import (
 
 // LogrusGoKitLogger is a gokit-compatible wrapper for logrus.LogrusGoKitLogger
 type LogrusGoKitLogger struct {
-	Logger *logrus.Logger
+	logrusLogger
+}
+
+type logrusLogger interface {
+	WithFields(fields logrus.Fields) *logrus.Entry
 }
 
 // NewStackdriverLogger creates a gokit-compatible logger
-func NewLogrusGoKitLogger(w io.Writer, opts ...Option) *LogrusGoKitLogger {
-	logger := logrus.New()
-	logger.SetFormatter(NewFormatter(opts...))
-	logger.SetOutput(w)
-	return &LogrusGoKitLogger{Logger: logger}
+func NewLogrusGoKitLogger(logger logrusLogger) *LogrusGoKitLogger {
+	return &LogrusGoKitLogger{logger}
 }
 
 const msgKey = "msg"
@@ -30,18 +30,11 @@ const errorKey = "error"
 const severityKey = "severity"
 const levelKey = "level"
 
-// NewEntry creates a new logrus entry
-func (l LogrusGoKitLogger) NewEntry(kvs ...interface{}) *logrus.Entry {
-	return logrus.NewEntry(l.Logger)
-}
-
-// Log creates a log event from keyvals, a variadic sequence of alternating
-// keys and values. It implements the fundamental go-kit Logger interface
+// Log implements the fundamental Logger interface
 func (l LogrusGoKitLogger) Log(keyvals ...interface{}) error {
-	entry := l.NewEntry()
-	fields, level, msg := extractLogElements(keyvals...)
+	fields, level, msg := l.extractLogElements(keyvals...)
 
-	entry = entry.WithFields(fields)
+	entry := l.WithFields(fields)
 	entry.Log(level, msg)
 
 	return nil
@@ -50,7 +43,7 @@ func (l LogrusGoKitLogger) Log(keyvals ...interface{}) error {
 // extractLogElements iterates through the keyvals to form well
 // structuredkey:value pairs that Logrus expects. It also checks for keys with
 // special meaning like "msg" and "level" to format the log entry
-func extractLogElements(keyVals ...interface{}) (fields logrus.Fields, level logrus.Level, msg string) {
+func (l LogrusGoKitLogger) extractLogElements(keyVals ...interface{}) (fields logrus.Fields, level logrus.Level, msg string) {
 	msg = ""
 	fields = logrus.Fields{}
 	level = logrus.DebugLevel
