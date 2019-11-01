@@ -4,44 +4,34 @@ package stackdriver
 
 import (
 	"fmt"
-	"io"
 
 	gokitlog "github.com/go-kit/kit/log"
 	"github.com/sirupsen/logrus"
 )
 
-// LogrusGoKitLogger is a gokit-compatible wrapper for logrus.LogrusGoKitLogger
-type LogrusGoKitLogger struct {
-	Logger *logrus.Logger
+type logrusLogger interface {
+	WithFields(fields logrus.Fields) *logrus.Entry
 }
 
-// NewStackdriverLogger creates a gokit-compatible logger
-func NewLogrusGoKitLogger(w io.Writer, opts ...Option) *LogrusGoKitLogger {
-	logger := logrus.New()
-	logger.SetFormatter(NewFormatter(opts...))
-	logger.SetOutput(w)
-	return &LogrusGoKitLogger{Logger: logger}
+// NewLogrusGoKitLogger wraps a logrus instance and implements the GoKit Logger interface
+func NewLogrusGoKitLogger(logger logrusLogger) *LogrusGoKitLogger {
+	return &LogrusGoKitLogger{logger}
+}
+
+// LogrusGoKitLogger is the concrete implementation of the logging wrapper
+type LogrusGoKitLogger struct {
+	logrusLogger
 }
 
 const msgKey = "msg"
-const messageKey = "message"
 const errKey = "err"
-const errorKey = "error"
-const severityKey = "severity"
 const levelKey = "level"
 
-// NewEntry creates a new logrus entry
-func (l LogrusGoKitLogger) NewEntry(kvs ...interface{}) *logrus.Entry {
-	return logrus.NewEntry(l.Logger)
-}
-
-// Log creates a log event from keyvals, a variadic sequence of alternating
-// keys and values. It implements the fundamental go-kit Logger interface
+// Log implements the fundamental Logger interface
 func (l LogrusGoKitLogger) Log(keyvals ...interface{}) error {
-	entry := l.NewEntry()
-	fields, level, msg := extractLogElements(keyvals...)
+	fields, level, msg := l.extractLogElements(keyvals...)
 
-	entry = entry.WithFields(fields)
+	entry := l.WithFields(fields)
 	entry.Log(level, msg)
 
 	return nil
@@ -50,46 +40,44 @@ func (l LogrusGoKitLogger) Log(keyvals ...interface{}) error {
 // extractLogElements iterates through the keyvals to form well
 // structuredkey:value pairs that Logrus expects. It also checks for keys with
 // special meaning like "msg" and "level" to format the log entry
-func extractLogElements(keyVals ...interface{}) (fields logrus.Fields, level logrus.Level, msg string) {
+func (l LogrusGoKitLogger) extractLogElements(keyvals ...interface{}) (fields logrus.Fields, level logrus.Level, msg string) {
 	msg = ""
 	fields = logrus.Fields{}
 	level = logrus.DebugLevel
 
-	for i := 0; i < len(keyVals); i += 2 {
-		fieldKey := fmt.Sprint(keyVals[i])
-		if i+1 < len(keyVals) {
+	for i := 0; i < len(keyvals); i += 2 {
+		if i+1 < len(keyvals) {
 
-			fieldValue := fmt.Sprint(keyVals[i+1])
-			if (fieldKey == msgKey || fieldKey == messageKey) && msg == "" {
+			if fmt.Sprint(keyvals[i]) == msgKey && msg == "" {
 				// if this is a "msg" key, store it separately so we can use it as the
 				// main log message
-				msg = fieldValue
-			} else if (fieldKey == errKey || fieldKey == errorKey) {
+				msg = fmt.Sprint(keyvals[i+1])
+			} else if fmt.Sprint(keyvals[i]) == errKey {
 				// if this is a "err" key, we should use the error message as
 				// the main message and promote the level to Error
-				err := fieldValue
+				err := fmt.Sprint(keyvals[i+1])
 				if err != "" {
 					msg = err
 					level = logrus.ErrorLevel
 				}
-			} else if fieldKey == levelKey || fieldKey == severityKey {
+			} else if fmt.Sprint(keyvals[i]) == levelKey {
 				// if this is a "level" key, it means GoKit logger is giving us
 				// a hint to the logging level
-				levelStr := fieldValue
+				levelStr := fmt.Sprint(keyvals[i+1])
 				parsedLevel, err := logrus.ParseLevel(levelStr)
 				if err != nil || level < parsedLevel {
 					level = logrus.ErrorLevel
-					fields[levelKey] = levelStr
+					fields["level"] = levelStr
 				} else {
 					level = parsedLevel
 				}
 			} else {
 				// this is just regular log data, add it as a key:value pair
-				fields[fieldKey] = keyVals[i+1]
+				fields[fmt.Sprint(keyvals[i])] = keyvals[i+1]
 			}
 		} else {
 			// odd pair key, with no matching value
-			fields[fieldKey] = gokitlog.ErrMissingValue
+			fields[fmt.Sprint(keyvals[i])] = gokitlog.ErrMissingValue
 		}
 	}
 	return
