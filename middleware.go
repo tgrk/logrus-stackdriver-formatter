@@ -35,7 +35,6 @@ func LoggingMiddleware(log *logrus.Logger) func(http.Handler) http.Handler {
 
 			fields := logrus.Fields{"httpRequest": request}
 
-			// No idea if this works
 			traceHeader := r.Header.Get("X-Cloud-Trace-Context")
 			if traceHeader != "" {
 				fields["trace"] = traceHeader

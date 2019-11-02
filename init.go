@@ -2,17 +2,16 @@ package logadapter
 
 import (
 	"io"
-	"os"
 
 	"github.com/sirupsen/logrus"
 )
 
-// InitLogging initializes a logger to send things to stackdriver.
-func InitLogging() *logrus.Logger {
-	var log = logrus.New()
-	log.Formatter = NewFormatter()
+// InitLogging initializes a logrus logger to send things to stackdriver.
+func InitLogging(w io.Writer, opts ...Option) *logrus.Logger {
+	log := logrus.New()
+	log.Formatter = NewFormatter(opts...)
 	log.Level = logrus.DebugLevel
-	log.SetOutput(os.Stdout)
+	log.SetOutput(w)
 
 	log.Info("Logger successfully initialized!")
 
@@ -21,8 +20,6 @@ func InitLogging() *logrus.Logger {
 
 // InitLogrusGoKitLogger initializes a go kit logger to send things to stackdriver.
 func InitLogrusGoKitLogger(w io.Writer, opts ...Option) *LogrusGoKitLogger {
-	logger := logrus.New()
-	logger.SetFormatter(NewFormatter(opts...))
-	logger.SetOutput(w)
+	logger := InitLogging(w, opts...)
 	return NewLogrusGoKitLogger(logger)
 }
