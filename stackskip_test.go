@@ -55,6 +55,9 @@ func TestStackSkip(t *testing.T) {
 		t.Error(err)
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("unexpected output = %# v; want = %# v", pretty.Formatter(got), pretty.Formatter(want))
+		t.Errorf(
+			"unexpected output = %# v; want = %# v",
+			pretty.Formatter(got),
+			pretty.Formatter(want))
 	}
 }

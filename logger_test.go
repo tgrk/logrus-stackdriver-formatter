@@ -21,7 +21,12 @@ func TestLogrusGoKitLogger_extractLogElements_basic(t *testing.T) {
 	mockLogrus := &mockLogrusLogger{}
 	logger := &LogrusGoKitLogger{mockLogrus}
 
-	fields, level, msg := logger.extractLogElements("msg", "testy mctestface", "level", "error", "foo", "bar", "number", 42, "flag", true)
+	fields, level, msg := logger.extractLogElements(
+		"msg", "testy mctestface",
+		"level", "error",
+		"foo", "bar",
+		"number", 42,
+		"flag", true)
 
 	expectedFields := logrus.Fields{}
 	expectedFields["foo"] = "bar"
@@ -50,7 +55,13 @@ func TestLogrusGoKitLogger_extractLogElements_errorOverride(t *testing.T) {
 	mockLogrus := &mockLogrusLogger{}
 	logger := &LogrusGoKitLogger{mockLogrus}
 
-	fields, level, msg := logger.extractLogElements("err", "test error", "msg", "some message", "level", "debug", "number", 42, "flag", true)
+	fields, level, msg := logger.extractLogElements(
+		"err", "test error",
+		"msg", "some message",
+		"level", "debug",
+		"number", 42,
+		"flag", true,
+	)
 
 	expectedFields := logrus.Fields{}
 	expectedFields["msg"] = "some message"

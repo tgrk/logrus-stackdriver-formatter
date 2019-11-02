@@ -125,7 +125,8 @@ func WithStackSkip(v string) Option {
 	}
 }
 
-// WithRegexSkip lets you configure which functions or packages should be skipped for locating the error.
+// WithRegexSkip lets you configure
+// which functions or packages should be skipped for locating the error.
 func WithRegexSkip(v string) Option {
 	return func(f *Formatter) {
 		f.RegexSkip = v
@@ -216,7 +217,7 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 	}
 
 	if val, ok := e.Data["trace"]; ok {
-		ee.Trace = val.(string)
+		ee.Trace, _ = val.(string)
 	}
 
 	if len(e.Message) > 0 {

@@ -27,7 +27,10 @@ func ExampleWithError() {
 	// Output:
 	// {"message":"application up and running","severity":"INFO","context":{}}
 	// {"serviceContext":{"service":"test-service","version":"v0.1.0"},"message":
-	// "unable to parse integer\nstrconv.ParseInt: parsing \"text\": invalid syntax","severity":"ERROR","context":
-	// {"reportLocation":{"file":"testing/example_test.go","line":121,"function":"runExample"}},"sourceLocation":
+	// "unable to parse integer\nstrconv.ParseInt:
+	// parsing \"text\": invalid syntax","severity":"ERROR","context":
+	// {"reportLocation":
+	// {"file":"testing/example_test.go","line":121,"function":"runExample"}},
+	// "sourceLocation":
 	// {"file":"testing/example_test.go","line":121,"function":"runExample"}}
 }
