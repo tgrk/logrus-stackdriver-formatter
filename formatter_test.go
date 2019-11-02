@@ -12,7 +12,8 @@ import (
 )
 
 func TestFormatter(t *testing.T) {
-	for _, tt := range formatterTests {
+	for i := range formatterTests {
+		tt := formatterTests[i]
 		t.Run(tt.name, func(t *testing.T) {
 			var out bytes.Buffer
 

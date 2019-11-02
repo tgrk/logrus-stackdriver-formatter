@@ -1,4 +1,4 @@
-package logadapter_example
+package logadapterexample
 
 import (
 	"os"
@@ -8,7 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func ExampleLogError() {
+func ExampleWithError() {
 	logger := logrus.New()
 	logger.Out = os.Stdout
 	logger.Formatter = stackdriver.NewFormatter(
@@ -26,5 +26,8 @@ func ExampleLogError() {
 
 	// Output:
 	// {"message":"application up and running","severity":"INFO","context":{}}
-	// {"serviceContext":{"service":"test-service","version":"v0.1.0"},"message":"unable to parse integer\nstrconv.ParseInt: parsing \"text\": invalid syntax","severity":"ERROR","context":{"reportLocation":{"file":"testing/example.go","line":121,"function":"runExample"}},"sourceLocation":{"file":"testing/example.go","line":121,"function":"runExample"}}
+	// {"serviceContext":{"service":"test-service","version":"v0.1.0"},"message":
+	// "unable to parse integer\nstrconv.ParseInt: parsing \"text\": invalid syntax","severity":"ERROR","context":
+	// {"reportLocation":{"file":"testing/example_test.go","line":121,"function":"runExample"}},"sourceLocation":
+	// {"file":"testing/example_test.go","line":121,"function":"runExample"}}
 }

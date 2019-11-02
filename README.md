@@ -22,8 +22,9 @@ go get -u github.com/TV4/logrus-stackdriver-formatter
 package main
 
 import (
-    "github.com/sirupsen/logrus"
-    stackdriver "github.com/StevenACoffman/logrus-stackdriver-formatter"
+
+stackdriver "github.com/StevenACoffman/logrus-stackdriver-formatter"
+"github.com/sirupsen/logrus"
 )
 
 var log = logrus.New()

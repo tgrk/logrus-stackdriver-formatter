@@ -43,21 +43,20 @@ func (l LogrusGoKitLogger) Log(keyvals ...interface{}) error {
 // extractLogElements iterates through the keyvals to form well
 // structuredkey:value pairs that Logrus expects. It also checks for keys with
 // special meaning like "msg" and "level" to format the log entry
-func (l LogrusGoKitLogger) extractLogElements(keyVals ...interface{}) (fields logrus.Fields, level logrus.Level, msg string) {
-	msg = ""
-	fields = logrus.Fields{}
-	level = logrus.DebugLevel
+func (l LogrusGoKitLogger) extractLogElements(keyVals ...interface{}) (logrus.Fields, logrus.Level, string) {
+	msg := ""
+	fields := logrus.Fields{}
+	level := logrus.DebugLevel
 
 	for i := 0; i < len(keyVals); i += 2 {
 		fieldKey := fmt.Sprint(keyVals[i])
 		if i+1 < len(keyVals) {
-
 			fieldValue := fmt.Sprint(keyVals[i+1])
 			if (fieldKey == msgKey || fieldKey == messageKey) && msg == "" {
 				// if this is a "msg" key, store it separately so we can use it as the
 				// main log message
 				msg = fieldValue
-			} else if (fieldKey == errKey || fieldKey == errorKey) {
+			} else if fieldKey == errKey || fieldKey == errorKey {
 				// if this is a "err" key, we should use the error message as
 				// the main message and promote the level to Error
 				err := fieldValue
@@ -85,5 +84,5 @@ func (l LogrusGoKitLogger) extractLogElements(keyVals ...interface{}) (fields lo
 			fields[fieldKey] = gokitlog.ErrMissingValue
 		}
 	}
-	return
+	return fields, level, msg
 }

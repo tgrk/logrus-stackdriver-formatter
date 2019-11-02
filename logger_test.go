@@ -18,7 +18,6 @@ func (l *mockLogrusLogger) WithFields(fields logrus.Fields) *logrus.Entry {
 }
 
 func TestLogrusGoKitLogger_extractLogElements_basic(t *testing.T) {
-
 	mockLogrus := &mockLogrusLogger{}
 	logger := &LogrusGoKitLogger{mockLogrus}
 
@@ -35,7 +34,6 @@ func TestLogrusGoKitLogger_extractLogElements_basic(t *testing.T) {
 }
 
 func TestLogrusGoKitLogger_extractLogElements_defaultLevel(t *testing.T) {
-
 	mockLogrus := &mockLogrusLogger{}
 	logger := &LogrusGoKitLogger{mockLogrus}
 
@@ -49,7 +47,6 @@ func TestLogrusGoKitLogger_extractLogElements_defaultLevel(t *testing.T) {
 }
 
 func TestLogrusGoKitLogger_extractLogElements_errorOverride(t *testing.T) {
-
 	mockLogrus := &mockLogrusLogger{}
 	logger := &LogrusGoKitLogger{mockLogrus}
 

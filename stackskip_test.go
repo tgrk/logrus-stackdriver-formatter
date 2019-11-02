@@ -3,11 +3,11 @@ package logadapter
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/kr/pretty"
 	"reflect"
 	"testing"
 
 	"github.com/StevenACoffman/logrus-stackdriver-formatter/test"
+	"github.com/kr/pretty"
 	"github.com/sirupsen/logrus"
 )
 

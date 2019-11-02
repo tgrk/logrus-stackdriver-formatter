@@ -10,7 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// LoggingMiddleware is a middleware for writing request logs in a stuctured
+// LoggingMiddleware is a middleware for writing request logs in a structured
 // format to stackdriver.
 func LoggingMiddleware(log *logrus.Logger) func(http.Handler) http.Handler {
 	return func(handler http.Handler) http.Handler {

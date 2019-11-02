@@ -153,7 +153,9 @@ func NewFormatter(options ...Option) *Formatter {
 	return &fmtr
 }
 
-func (f *Formatter) errorOrigin() (stack.Call, error) {
+// errorOrigin Extracts the report location from call stack.
+func (f *Formatter) errorOrigin() stack.Call {
+	// skip will skip packages and sub-packages from a list
 	skip := func(pkg string) bool {
 		for _, skip := range f.StackSkip {
 			if strings.Contains(pkg, skip) {
@@ -164,7 +166,7 @@ func (f *Formatter) errorOrigin() (stack.Call, error) {
 	}
 
 	var r *regexp.Regexp
-	if len(f.RegexSkip) != 0 {
+	if f.RegexSkip != "" {
 		r = regexp.MustCompile(f.RegexSkip)
 	}
 	// We could start at 2 to skip this call and our caller's call, but they are filtered by package
@@ -172,14 +174,14 @@ func (f *Formatter) errorOrigin() (stack.Call, error) {
 		c := stack.Caller(i)
 		// ErrNoFunc indicates we're over traversing the stack.
 		if _, err := c.MarshalText(); err != nil {
-			return stack.Call{}, nil
+			return stack.Call{}
 		}
 		pkg := fmt.Sprintf("%+k", c)
 		// Remove vendoring from package path.
 		parts := strings.SplitN(pkg, "/vendor/", 2)
 		pkg = parts[len(parts)-1]
 		if !skip(pkg) && (r == nil || !r.MatchString(c.Frame().Function)) {
-			return c, nil
+			return c
 		}
 	}
 }
@@ -277,38 +279,34 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 		}
 
 		if e.Caller != nil {
-			ee.Context.ReportLocation = &ReportLocation{
-				FilePath:     e.Caller.File,
-				FunctionName: e.Caller.Function,
-				LineNumber:   e.Caller.Line,
-			}
-			ee.SourceLocation = &ReportLocation{
-				FilePath:     e.Caller.File,
-				FunctionName: e.Caller.Function,
-				LineNumber:   e.Caller.Line,
-			}
+			ee.Context.ReportLocation = extractFromCaller(e)
+			ee.SourceLocation = extractFromCaller(e)
 		} else {
 			// Extract report location from call stack.
-			if c, err := f.errorOrigin(); err == nil {
-				lineNumber, _ := strconv.ParseInt(fmt.Sprintf("%d", c), 10, 64)
-
-				ee.Context.ReportLocation = &ReportLocation{
-					FilePath:     fmt.Sprintf("%+s", c),
-					LineNumber:   int(lineNumber),
-					FunctionName: fmt.Sprintf("%n", c),
-				}
-
-				ee.SourceLocation = &ReportLocation{
-					FilePath:     fmt.Sprintf("%+s", c),
-					LineNumber:   int(lineNumber),
-					FunctionName: fmt.Sprintf("%n", c),
-				}
-
-			}
+			c := f.errorOrigin()
+			lineNumber, _ := strconv.ParseInt(fmt.Sprintf("%d", c), 10, 64)
+			ee.Context.ReportLocation = extractFromCallStack(c, lineNumber)
+			ee.SourceLocation = extractFromCallStack(c, lineNumber)
 		}
 	}
 	ee.Message = strings.Join(message, "\n")
 	return ee, nil
+}
+
+func extractFromCaller(e *logrus.Entry) *ReportLocation {
+	return &ReportLocation{
+		FilePath:     e.Caller.File,
+		FunctionName: e.Caller.Function,
+		LineNumber:   e.Caller.Line,
+	}
+}
+
+func extractFromCallStack(c stack.Call, lineNumber int64) *ReportLocation {
+	return &ReportLocation{
+		FilePath:     fmt.Sprintf("%+s", c),
+		LineNumber:   int(lineNumber),
+		FunctionName: fmt.Sprintf("%n", c),
+	}
 }
 
 // Format formats a logrus entry according to the Stackdriver specifications.
