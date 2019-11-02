@@ -171,11 +171,11 @@ ber-common/zap](https://github.com/uber-common/zap), a zero-alloc logging librar
 
 ## Alternatives
 
-+ Both [go-kit log](go-kit log) and [logr](https://github.com/go-logr/logr) both provide to developers clean, minimal surface area for sending log messages. However, neither has direct, first-class stackdriver support.
++ Both [go-kit log](https://github.com/go-kit/kit/tree/master/log) and [logr](https://github.com/go-logr/logr) both provide to developers clean, minimal surface area for sending log messages. However, neither has direct, first-class stackdriver support.
 + Uber's [Zap](https://github.com/uber-go/zap) is very performant, but it's SugaredLogger API is unfamiliar to me.
 
 So one choice could be [logr](https://github.com/go-logr/logr) -> [zapr](https://github.com/go-logr/zapr) -> [zap](https://github.com/uber-go/zap) -> [zap-stackdriver](https://github.com/tommy351/zap-stackdriver) or [zapdriver](github.com/blendle/zapdriver) but zapr still uses dep, didn't have go module support.
 
-I could also have gone with [go-kit log](go-kit log) -> [zap](https://github.com/uber-go/zap) -> [zap-stackdriver](https://github.com/tommy351/zap-stackdriver) or [zapdriver](github.com/blendle/zapdriver).
+I could also have gone with [go-kit log](https://github.com/go-kit/kit/tree/master/log) -> [zap](https://github.com/uber-go/zap) -> [zap-stackdriver](https://github.com/tommy351/zap-stackdriver) or [zapdriver](github.com/blendle/zapdriver).
 
 Instead, I pulled a bunch of people's forks together into this piece of mad science because it seemed like it would work. ¯\\\_(ツ)_/¯
