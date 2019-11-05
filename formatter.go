@@ -75,6 +75,7 @@ type HTTPRequest struct {
 
 // Entry stores a log entry.
 type Entry struct {
+	LogName        string          `json:"logName,omitempty"`
 	Timestamp      string          `json:"timestamp,omitempty"`
 	Trace          string          `json:"trace,omitempty"`
 	ServiceContext *ServiceContext `json:"serviceContext,omitempty"`
@@ -218,6 +219,12 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 
 	if val, ok := e.Data["trace"]; ok {
 		ee.Trace, _ = val.(string)
+	}
+
+	if val, ok := e.Data["logID"]; ok {
+		ee.LogName = "projects/" + f.ProjectID + "/logs/" + f.Service + "%2F" + val.(string)
+	} else {
+		ee.LogName = "projects/" + f.ProjectID + "/logs/" + f.Service
 	}
 
 	if len(e.Message) > 0 {

@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	"github.com/felixge/httpsnoop"
-	"github.com/hellofresh/logging-go/context"
 	"github.com/sirupsen/logrus"
 )
 
@@ -15,7 +14,6 @@ import (
 func LoggingMiddleware(log *logrus.Logger) func(http.Handler) http.Handler {
 	return func(handler http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			r = r.WithContext(context.New(r.Context()))
 
 			// https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#HttpRequest
 			request := &HTTPRequest{
