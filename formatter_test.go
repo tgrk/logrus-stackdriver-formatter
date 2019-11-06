@@ -44,14 +44,20 @@ var formatterTests = []struct {
 	{
 		name: "With Field",
 		run: func(logger *logrus.Logger) {
-			logger.WithField("foo", "bar").Info("my log entry")
+			logger.
+				WithField("foo", "bar").
+				WithField("trace", "1").
+				Info("my log entry")
 		},
 		out: map[string]interface{}{
 			"severity": "INFO",
 			"message":  "my log entry",
+			"logName":  "projects//logs/test",
+			"trace":    "projects//traces/1",
 			"context": map[string]interface{}{
 				"data": map[string]interface{}{
-					"foo": "bar",
+					"foo":   "bar",
+					"trace": "1",
 				},
 			},
 		},
@@ -59,18 +65,24 @@ var formatterTests = []struct {
 	{
 		name: "WithField and Error",
 		run: func(logger *logrus.Logger) {
-			logger.WithField("foo", "bar").Error("my log entry")
+			logger.
+				WithField("foo", "bar").
+				WithField("trace", "1").
+				Error("my log entry")
 		},
 		out: map[string]interface{}{
 			"severity": "ERROR",
 			"message":  "my log entry",
+			"logName":  "projects//logs/test",
+			"trace":    "projects//traces/1",
 			"serviceContext": map[string]interface{}{
 				"service": "test",
 				"version": "0.1",
 			},
 			"context": map[string]interface{}{
 				"data": map[string]interface{}{
-					"foo": "bar",
+					"foo":   "bar",
+					"trace": "1",
 				},
 				"reportLocation": map[string]interface{}{
 					"file":     "testing/testing.go",
@@ -90,19 +102,23 @@ var formatterTests = []struct {
 		run: func(logger *logrus.Logger) {
 			logger.
 				WithField("foo", "bar").
+				WithField("trace", "1").
 				WithError(errors.New("test error")).
 				Error("my log entry")
 		},
 		out: map[string]interface{}{
 			"severity": "ERROR",
 			"message":  "my log entry\ntest error",
+			"logName":  "projects//logs/test",
+			"trace":    "projects//traces/1",
 			"serviceContext": map[string]interface{}{
 				"service": "test",
 				"version": "0.1",
 			},
 			"context": map[string]interface{}{
 				"data": map[string]interface{}{
-					"foo": "bar",
+					"foo":   "bar",
+					"trace": "1",
 				},
 				"reportLocation": map[string]interface{}{
 					"file":     "testing/testing.go",
@@ -122,7 +138,8 @@ var formatterTests = []struct {
 		run: func(logger *logrus.Logger) {
 			logger.
 				WithFields(logrus.Fields{
-					"foo": "bar",
+					"foo":   "bar",
+					"trace": "1",
 					"httpRequest": map[string]interface{}{
 						"requestMethod": "GET",
 					},
@@ -132,13 +149,16 @@ var formatterTests = []struct {
 		out: map[string]interface{}{
 			"severity": "ERROR",
 			"message":  "my log entry",
+			"logName":  "projects//logs/test",
+			"trace":    "projects//traces/1",
 			"serviceContext": map[string]interface{}{
 				"service": "test",
 				"version": "0.1",
 			},
 			"context": map[string]interface{}{
 				"data": map[string]interface{}{
-					"foo": "bar",
+					"foo":   "bar",
+					"trace": "1",
 					"httpRequest": map[string]interface{}{
 						"requestMethod": "GET",
 					},

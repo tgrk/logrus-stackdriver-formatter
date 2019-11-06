@@ -14,7 +14,6 @@ import (
 func LoggingMiddleware(log *logrus.Logger) func(http.Handler) http.Handler {
 	return func(handler http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 			// https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#HttpRequest
 			request := &HTTPRequest{
 				RequestMethod: r.Method,

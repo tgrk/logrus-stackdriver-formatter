@@ -26,17 +26,21 @@ func TestStackSkip(t *testing.T) {
 	mylog := test.LogWrapper{
 		Logger: logger,
 	}
-
 	mylog.Error("my log entry")
 
 	want := map[string]interface{}{
 		"severity": "ERROR",
 		"message":  "my log entry",
+		"logName":  "projects//logs/test",
+		"trace":    "projects//traces/1",
 		"serviceContext": map[string]interface{}{
 			"service": "test",
 			"version": "0.1",
 		},
 		"context": map[string]interface{}{
+			"data": map[string]interface{}{
+				"trace": "1",
+			},
 			"reportLocation": map[string]interface{}{
 				"file":     "testing/testing.go",
 				"line":     865.0,
@@ -54,6 +58,7 @@ func TestStackSkip(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf(
 			"unexpected output = %# v; want = %# v",

@@ -21,7 +21,7 @@ func ExampleWithError() {
 
 	_, err := strconv.ParseInt("text", 10, 64)
 	if err != nil {
-		logger.WithError(err).Errorln("unable to parse integer")
+		logger.WithError(err).WithField("trace", "1").Errorln("unable to parse integer")
 	}
 
 	// Output:

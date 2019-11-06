@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-stack/stack"
+	"github.com/lithammer/shortuuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -217,9 +218,8 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 		},
 	}
 
-	if val, ok := e.Data["trace"]; ok {
-		ee.Trace, _ = val.(string)
-	}
+	traceID := f.extractTraceID(e)
+	ee.Trace = fmt.Sprintf("projects/%s/traces/%s", f.ProjectID, traceID)
 
 	if val, ok := e.Data["logID"]; ok {
 		ee.LogName = "projects/" + f.ProjectID + "/logs/" + f.Service + "%2F" + val.(string)
@@ -299,6 +299,19 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 	}
 	ee.Message = strings.Join(message, "\n")
 	return ee, nil
+}
+
+func (f *Formatter) extractTraceID(e *logrus.Entry) string {
+	var traceID string
+	if val, ok := e.Data["trace"]; ok {
+		traceID, _ = val.(string)
+	} else {
+		// The Trace ID has no powers outside AppEngine,
+		// and is simply used to differentiate one request from another,
+		// so any unique value is sufficient.
+		traceID = shortuuid.New()
+	}
+	return traceID
 }
 
 func extractFromCaller(e *logrus.Entry) *ReportLocation {

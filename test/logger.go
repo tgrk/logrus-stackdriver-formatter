@@ -7,5 +7,5 @@ type LogWrapper struct {
 }
 
 func (l *LogWrapper) Error(msg string) {
-	l.Logger.Error(msg)
+	l.Logger.WithField("trace", "1").Error(msg)
 }

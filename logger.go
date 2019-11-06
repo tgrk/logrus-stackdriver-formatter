@@ -1,4 +1,4 @@
-// Package stackdriver provides an adapter to the
+// Package logadapter provides an adapter to the
 // go-kit log.Logger interface.
 package logadapter
 
@@ -18,7 +18,7 @@ type logrusLogger interface {
 	WithFields(fields logrus.Fields) *logrus.Entry
 }
 
-// NewStackdriverLogger creates a gokit-compatible logger
+// NewLogrusGoKitLogger creates a gokit-compatible logger
 func NewLogrusGoKitLogger(logger logrusLogger) *LogrusGoKitLogger {
 	return &LogrusGoKitLogger{logger}
 }
