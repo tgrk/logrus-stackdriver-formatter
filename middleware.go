@@ -22,6 +22,7 @@ func LoggingMiddleware(log *logrus.Logger) func(http.Handler) http.Handler {
 				Referer:       r.Referer(),
 				UserAgent:     r.UserAgent(),
 				RequestSize:   strconv.FormatInt(r.ContentLength, 10),
+				Protocol:      r.Proto,
 			}
 
 			m := httpsnoop.CaptureMetrics(handler, w, r)
@@ -37,7 +38,7 @@ func LoggingMiddleware(log *logrus.Logger) func(http.Handler) http.Handler {
 				fields["trace"] = traceHeader
 			}
 
-			log.WithFields(fields).Info("Completed request")
+			log.WithFields(fields).Infof("serving %v %v", r.Method, r.URL)
 		})
 	}
 }
