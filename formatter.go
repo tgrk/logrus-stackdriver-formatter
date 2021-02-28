@@ -68,7 +68,8 @@ type Context struct {
 	ReportLocation   *ReportLocation        `json:"reportLocation,omitempty"`
 	HTTPRequest      *HTTPRequest           `json:"httpRequest,omitempty"`
 	PubSubRequest    map[string]interface{} `json:"pubSubRequest,omitempty"`
-	GRPCRequest      map[string]interface{} `json:"grpcRequest,omitempty"`
+	GRPCRequest      *GRPCRequest           `json:"grpcRequest,omitempty"`
+	GRPCStatus       json.RawMessage        `json:"grpcStatus,omitempty"`
 	SourceReferences []SourceReference      `json:"sourceReferences,omitempty"`
 }
 
@@ -326,11 +327,21 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 		// As a convenience, when using supplying the grpcRequest field, it
 		// gets special care.
 		if reqData, ok := ee.Context.Data["grpcRequest"]; ok {
-			if req, ok := reqData.(map[string]interface{}); ok {
+			if req, ok := reqData.(*GRPCRequest); ok {
 				ee.Context.GRPCRequest = req
 				delete(ee.Context.Data, "grpcRequest")
 			}
 		}
+
+		// As a convenience, when using supplying the grpcStatus field, it
+		// gets special care.
+		if reqData, ok := ee.Context.Data["grpcStatus"]; ok {
+			if req, ok := reqData.(json.RawMessage); ok {
+				ee.Context.GRPCStatus = req
+				delete(ee.Context.Data, "grpcStatus")
+			}
+		}
+
 		// As a convenience, when using supplying the pubSubRequest field, it
 		// gets special care.
 		if reqData, ok := ee.Context.Data["pubSubRequest"]; ok {
