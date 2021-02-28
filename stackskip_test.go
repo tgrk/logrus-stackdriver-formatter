@@ -3,11 +3,10 @@ package logadapter
 import (
 	"bytes"
 	"encoding/json"
-	"reflect"
 	"testing"
 
-	"github.com/StevenACoffman/logrus-stackdriver-formatter/test"
-	"github.com/kr/pretty"
+	"github.com/Mattel/logrus-stackdriver-formatter/test"
+	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 )
 
@@ -17,9 +16,10 @@ func TestStackSkip(t *testing.T) {
 	logger := logrus.New()
 	logger.Out = &out
 	logger.Formatter = NewFormatter(
+		WithProjectID("test-project"),
 		WithService("test"),
 		WithVersion("0.1"),
-		WithStackSkip("github.com/StevenACoffman/logrus-stackdriver-formatter"),
+		WithStackSkip("github.com/Mattel/logrus-stackdriver-formatter"),
 		WithSkipTimestamp(),
 	)
 
@@ -29,27 +29,27 @@ func TestStackSkip(t *testing.T) {
 	mylog.Error("my log entry")
 
 	want := map[string]interface{}{
-		"severity": "ERROR",
-		"message":  "my log entry",
-		"logName":  "projects//logs/test",
-		"trace":    "projects//traces/1",
+		"@type":                               reportedErrorEventType,
+		"severity":                            "ERROR",
+		"message":                             "my log entry",
+		"logName":                             "projects/test-project/logs/test",
+		"logging.googleapis.com/trace":        "projects/test-project/traces/105445aa7843bc8bf206b12000100000",
+		"logging.googleapis.com/spanId":       "1",
+		"logging.googleapis.com/traceSampled": true,
 		"serviceContext": map[string]interface{}{
 			"service": "test",
 			"version": "0.1",
 		},
 		"context": map[string]interface{}{
-			"data": map[string]interface{}{
-				"trace": "1",
-			},
 			"reportLocation": map[string]interface{}{
-				"file":     "testing/testing.go",
-				"line":     865.0,
-				"function": "tRunner",
+				"filePath":     "testing/testing.go",
+				"lineNumber":   1194.0,
+				"functionName": "tRunner",
 			},
 		},
 		"sourceLocation": map[string]interface{}{
 			"file":     "testing/testing.go",
-			"line":     865.0,
+			"line":     1194.0,
 			"function": "tRunner",
 		},
 	}
@@ -59,10 +59,7 @@ func TestStackSkip(t *testing.T) {
 		t.Error(err)
 	}
 
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf(
-			"unexpected output = %# v; want = %# v",
-			pretty.Formatter(got),
-			pretty.Formatter(want))
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Unexpected output (-want +got):\n%s", diff)
 	}
 }

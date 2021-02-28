@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	logadapter "github.com/StevenACoffman/logrus-stackdriver-formatter"
+	logadapter "github.com/Mattel/logrus-stackdriver-formatter"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
@@ -20,9 +20,14 @@ func TestFormatter(t *testing.T) {
 			logger := logrus.New()
 			logger.Out = &out
 			logger.Formatter = logadapter.NewFormatter(
+				logadapter.WithProjectID("test-project"),
 				logadapter.WithService("test"),
 				logadapter.WithVersion("0.1"),
 				logadapter.WithSkipTimestamp(),
+				logadapter.WithSourceReference(
+					"https://github.com/Mattel/test.git",
+					"v1.2.3",
+				),
 			)
 
 			tt.run(logger)
@@ -46,19 +51,26 @@ var formatterTests = []struct {
 		run: func(logger *logrus.Logger) {
 			logger.
 				WithField("foo", "bar").
-				WithField("trace", "1").
+				WithField("trace", "105445aa7843bc8bf206b12000100000/1;o=1").
 				Info("my log entry")
 		},
 		out: map[string]interface{}{
 			"severity": "INFO",
 			"message":  "my log entry",
-			"logName":  "projects//logs/test",
-			"trace":    "projects//traces/1",
+			"logName":  "projects/test-project/logs/test",
+
+			"logging.googleapis.com/trace":        "projects/test-project/traces/105445aa7843bc8bf206b12000100000",
+			"logging.googleapis.com/spanId":       "1",
+			"logging.googleapis.com/traceSampled": true,
 			"context": map[string]interface{}{
 				"data": map[string]interface{}{
-					"foo":   "bar",
-					"trace": "1",
+					"foo": "bar",
 				},
+			},
+			"sourceLocation": map[string]interface{}{
+				"file":     "testing/testing.go",
+				"function": "tRunner",
+				"line":     1194.0,
 			},
 		},
 	},
@@ -67,32 +79,41 @@ var formatterTests = []struct {
 		run: func(logger *logrus.Logger) {
 			logger.
 				WithField("foo", "bar").
-				WithField("trace", "1").
+				WithField("trace", "105445aa7843bc8bf206b12000100000/1;o=1").
 				Error("my log entry")
 		},
 		out: map[string]interface{}{
+			"@type":    "type.googleapis.com/google.devtools.clouderrorreporting.v1beta1.ReportedErrorEvent",
 			"severity": "ERROR",
 			"message":  "my log entry",
-			"logName":  "projects//logs/test",
-			"trace":    "projects//traces/1",
+			"logName":  "projects/test-project/logs/test",
+
+			"logging.googleapis.com/trace":        "projects/test-project/traces/105445aa7843bc8bf206b12000100000",
+			"logging.googleapis.com/spanId":       "1",
+			"logging.googleapis.com/traceSampled": true,
 			"serviceContext": map[string]interface{}{
 				"service": "test",
 				"version": "0.1",
 			},
 			"context": map[string]interface{}{
 				"data": map[string]interface{}{
-					"foo":   "bar",
-					"trace": "1",
+					"foo": "bar",
+				},
+				"sourceReferences": []map[string]interface{}{
+					{
+						"repository": "https://github.com/Mattel/test.git",
+						"revisionId": "v1.2.3",
+					},
 				},
 				"reportLocation": map[string]interface{}{
-					"file":     "testing/testing.go",
-					"line":     865.0,
-					"function": "tRunner",
+					"filePath":     "testing/testing.go",
+					"lineNumber":   1194.0,
+					"functionName": "tRunner",
 				},
 			},
 			"sourceLocation": map[string]interface{}{
 				"file":     "testing/testing.go",
-				"line":     865.0,
+				"line":     1194.0,
 				"function": "tRunner",
 			},
 		},
@@ -102,15 +123,19 @@ var formatterTests = []struct {
 		run: func(logger *logrus.Logger) {
 			logger.
 				WithField("foo", "bar").
-				WithField("trace", "1").
+				WithField("trace", "105445aa7843bc8bf206b12000100000/1;o=1").
 				WithError(errors.New("test error")).
 				Error("my log entry")
 		},
 		out: map[string]interface{}{
+			"@type":    "type.googleapis.com/google.devtools.clouderrorreporting.v1beta1.ReportedErrorEvent",
 			"severity": "ERROR",
 			"message":  "my log entry\ntest error",
-			"logName":  "projects//logs/test",
-			"trace":    "projects//traces/1",
+			"logName":  "projects/test-project/logs/test",
+
+			"logging.googleapis.com/trace":        "projects/test-project/traces/105445aa7843bc8bf206b12000100000",
+			"logging.googleapis.com/spanId":       "1",
+			"logging.googleapis.com/traceSampled": true,
 			"serviceContext": map[string]interface{}{
 				"service": "test",
 				"version": "0.1",
@@ -118,17 +143,23 @@ var formatterTests = []struct {
 			"context": map[string]interface{}{
 				"data": map[string]interface{}{
 					"foo":   "bar",
-					"trace": "1",
+					"error": "test error",
+				},
+				"sourceReferences": []map[string]interface{}{
+					{
+						"repository": "https://github.com/Mattel/test.git",
+						"revisionId": "v1.2.3",
+					},
 				},
 				"reportLocation": map[string]interface{}{
-					"file":     "testing/testing.go",
-					"line":     865.0,
-					"function": "tRunner",
+					"filePath":     "testing/testing.go",
+					"lineNumber":   1194.0,
+					"functionName": "tRunner",
 				},
 			},
 			"sourceLocation": map[string]interface{}{
 				"file":     "testing/testing.go",
-				"line":     865.0,
+				"line":     1194.0,
 				"function": "tRunner",
 			},
 		},
@@ -139,7 +170,7 @@ var formatterTests = []struct {
 			logger.
 				WithFields(logrus.Fields{
 					"foo":   "bar",
-					"trace": "1",
+					"trace": "105445aa7843bc8bf206b12000100000/1;o=1",
 					"httpRequest": map[string]interface{}{
 						"requestMethod": "GET",
 					},
@@ -147,31 +178,40 @@ var formatterTests = []struct {
 				Error("my log entry")
 		},
 		out: map[string]interface{}{
+			"@type":    "type.googleapis.com/google.devtools.clouderrorreporting.v1beta1.ReportedErrorEvent",
 			"severity": "ERROR",
 			"message":  "my log entry",
-			"logName":  "projects//logs/test",
-			"trace":    "projects//traces/1",
+			"logName":  "projects/test-project/logs/test",
+
+			"logging.googleapis.com/trace":        "projects/test-project/traces/105445aa7843bc8bf206b12000100000",
+			"logging.googleapis.com/spanId":       "1",
+			"logging.googleapis.com/traceSampled": true,
 			"serviceContext": map[string]interface{}{
 				"service": "test",
 				"version": "0.1",
 			},
 			"context": map[string]interface{}{
 				"data": map[string]interface{}{
-					"foo":   "bar",
-					"trace": "1",
+					"foo": "bar",
 					"httpRequest": map[string]interface{}{
 						"requestMethod": "GET",
 					},
 				},
 				"reportLocation": map[string]interface{}{
-					"file":     "testing/testing.go",
-					"line":     865.0,
-					"function": "tRunner",
+					"filePath":     "testing/testing.go",
+					"lineNumber":   1194.0,
+					"functionName": "tRunner",
+				},
+				"sourceReferences": []map[string]interface{}{
+					{
+						"repository": "https://github.com/Mattel/test.git",
+						"revisionId": "v1.2.3",
+					},
 				},
 			},
 			"sourceLocation": map[string]interface{}{
 				"file":     "testing/testing.go",
-				"line":     865.0,
+				"line":     1194.0,
 				"function": "tRunner",
 			},
 		},
