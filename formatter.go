@@ -313,6 +313,10 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 				ee.Context.User = user
 				delete(ee.Context.Data, "user")
 			}
+			if user, ok := userData.(fmt.Stringer); ok {
+				ee.Context.User = user.String()
+				delete(ee.Context.Data, "user")
+			}
 		}
 
 		// As a convenience, when using supplying the httpRequest field, it
