@@ -7,16 +7,18 @@ import (
 )
 
 var defaultLogOptions = &middlewareOptions{
-	filterRPC:  DefaultFilterRPC,
-	filterHTTP: DefaultFilterHTTP,
+	filterRPC:    DefaultFilterRPC,
+	filterHTTP:   DefaultFilterHTTP,
+	errorHandler: DefaultErrorHandler,
 }
 
 type MiddlewareOption func(*middlewareOptions)
 
 // Options
 type middlewareOptions struct {
-	filterRPC  FilterRPC
-	filterHTTP FilterHTTP
+	filterRPC    FilterRPC
+	filterHTTP   FilterHTTP
+	errorHandler ErrorHandler
 }
 
 func evaluateMiddlewareOptions(opts []MiddlewareOption) *middlewareOptions {
@@ -44,10 +46,19 @@ func WithHTTPFilter(f FilterHTTP) MiddlewareOption {
 	}
 }
 
+func WithErrorHandler(h ErrorHandler) MiddlewareOption {
+	return func(o *middlewareOptions) {
+		o.errorHandler = h
+	}
+}
+
 // Logging filters
 type (
 	FilterRPC  func(ctx context.Context, fullMethod string, err error) bool
 	FilterHTTP func(r *http.Request) bool
+
+	// ErrorHandler should return true if the error provided has already been logged
+	ErrorHandler func(ctx context.Context, err error, method string) (handled bool)
 )
 
 // TODO: default filters (NO healthchecks!)
@@ -70,4 +81,8 @@ func DefaultFilterHTTP(r *http.Request) bool {
 	default:
 		return true
 	}
+}
+
+func DefaultErrorHandler(ctx context.Context, err error, method string) (handled bool) {
+	return false
 }

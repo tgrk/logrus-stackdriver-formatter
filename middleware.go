@@ -191,6 +191,12 @@ func (l *loggingInterceptor) log(ctx context.Context, err error, method string) 
 			"grpcStatus": json.RawMessage(jsonStatus),
 		})
 
+		// if the error was already logged by our custom error handler, we
+		// don't need to log the rest of this request
+		if handled := l.errorHandler(ctx, err); handled {
+			return
+		}
+
 		if st.Code() == codes.Internal {
 			ctxlogrus.Extract(ctx).WithError(err).Errorf("internal error response on RPC %s", method)
 			return
