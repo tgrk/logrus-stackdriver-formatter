@@ -193,7 +193,7 @@ func (l *loggingInterceptor) log(ctx context.Context, err error, method string) 
 
 		// if the error was already logged by our custom error handler, we
 		// don't need to log the rest of this request
-		if handled := l.errorHandler(ctx, err); handled {
+		if handled := l.errorHandler(ctx, err, method); handled {
 			return
 		}
 
