@@ -15,6 +15,7 @@ import (
 	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
 	grpc_testing "github.com/grpc-ecosystem/go-grpc-middleware/testing"
 	pb_testproto "github.com/grpc-ecosystem/go-grpc-middleware/testing/testproto"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/suite"
 )
@@ -78,7 +79,14 @@ func (s *loggingPingService) Ping(ctx context.Context, ping *pb_testproto.PingRe
 }
 
 func (s *loggingPingService) PingError(ctx context.Context, ping *pb_testproto.PingRequest) (*pb_testproto.Empty, error) {
-	return s.TestServiceServer.PingError(ctx, ping)
+	empty, err := s.TestServiceServer.PingError(ctx, ping)
+
+	if ping.Value == "stack" {
+		st := errors.WithStack(err)
+		ctxlogrus.Extract(ctx).WithError(st).Error("error with stack")
+	}
+
+	return empty, err
 }
 
 func (s *loggingPingService) PingList(ping *pb_testproto.PingRequest, stream pb_testproto.TestService_PingListServer) error {

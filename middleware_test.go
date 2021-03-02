@@ -116,6 +116,15 @@ func (s *logFormatterSuite) TestError() {
 	}
 }
 
+func (s *logFormatterSuite) TestWithStack() {
+	_, err := s.Client.PingError(s.SimpleCtx(), &pb_testproto.PingRequest{
+		Value:             "stack",
+		ErrorCodeReturned: uint32(codes.Aborted),
+	})
+
+	require.Error(s.T(), err, "call returns error")
+}
+
 func TestHTTPMiddleware(t *testing.T) {
 	s := newHTTPTestSuite(t)
 

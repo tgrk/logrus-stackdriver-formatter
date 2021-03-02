@@ -280,7 +280,7 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 		// When using WithError(), the error is sent separately, but Error
 		// Reporting expects it to be a part of the message so we append it
 		// also.
-		if err, ok := ee.Context.Data[logrus.ErrorKey]; ok {
+		if err, ok := e.Data[logrus.ErrorKey]; ok {
 			// errors.WithStack formats the call stack to append to the message with %+v
 			// but this is not correctly formatted to be parsed by GCP Error Reporting
 			message = append(message, fmt.Sprintf("%v", err))
@@ -288,7 +288,8 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 			payloadTrace := f.StackStyle == TraceInPayload || f.StackStyle == TraceInBoth
 			if verr, ok := err.(error); ok && payloadTrace {
 				if stackTrace := extractStackFromError(verr); stackTrace != nil {
-					ee.StackTrace = fmt.Sprintf("%s", stackTrace)
+					stack := append(message, fmt.Sprintf("%s", stackTrace))
+					ee.StackTrace = strings.Join(stack, "\n")
 				}
 			}
 		}
@@ -297,11 +298,15 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 		// Stacktrace is assumed to be formatted by debug.Stack()
 		// Deliberately overwrites any stacktrace provided from the error
 		if st, ok := ee.Context.Data["stackTrace"]; ok {
+			// Error Reporting assumes the first line of a stacktrace explains the error encountered
+			// Even if it's not in the message itself
+			stack := append(message, fmt.Sprintf("%+v", st))
+
 			if f.StackStyle == TraceInMessage || f.StackStyle == TraceInBoth {
-				message = append(message, fmt.Sprintf("%+v", st))
+				message = stack
 			}
 			if f.StackStyle == TraceInPayload || f.StackStyle == TraceInBoth {
-				ee.StackTrace = fmt.Sprintf("%+v", st)
+				ee.StackTrace = strings.Join(stack, "\n")
 			}
 
 			delete(ee.Context.Data, "stackTrace")
