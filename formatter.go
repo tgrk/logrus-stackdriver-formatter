@@ -281,10 +281,6 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 		// Reporting expects it to be a part of the message so we append it
 		// also.
 		if err, ok := e.Data[logrus.ErrorKey]; ok {
-			// errors.WithStack formats the call stack to append to the message with %+v
-			// but this is not correctly formatted to be parsed by GCP Error Reporting
-			message = append(message, fmt.Sprintf("%v", err))
-
 			payloadTrace := f.StackStyle == TraceInPayload || f.StackStyle == TraceInBoth
 			if verr, ok := err.(error); ok && payloadTrace {
 				if stackTrace := extractStackFromError(verr); stackTrace != nil {
@@ -292,6 +288,10 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 					ee.StackTrace = strings.Join(stack, "\n")
 				}
 			}
+
+			// errors.WithStack formats the call stack to append to the message with %+v
+			// but this is not correctly formatted to be parsed by GCP Error Reporting
+			message = append(message, fmt.Sprintf("%v", err))
 		}
 
 		// If we supplied a stack trace, we can append it to the message.
