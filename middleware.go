@@ -149,7 +149,7 @@ func (l loggingInterceptor) interceptStream(
 
 func (l *loggingInterceptor) requestFromContext(ctx context.Context, request *GRPCRequest) *GRPCRequest {
 	if d, ok := ctx.Deadline(); ok {
-		request.Deadline = d.Format(time.RFC3339Nano)
+		request.Deadline = d.UTC().Format(time.RFC3339Nano)
 	}
 
 	if p, ok := peer.FromContext(ctx); ok && p != nil {
