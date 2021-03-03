@@ -72,7 +72,7 @@ func WithStackTraceStyle(s StackTraceStyle) Option {
 	}
 }
 
-// Pretty print logs
+// WithPrettyPrint pretty-prints logs.
 func WithPrettyPrint() Option {
 	return func(f *Formatter) {
 		f.PrettyPrint = true

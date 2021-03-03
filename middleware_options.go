@@ -75,8 +75,13 @@ func DefaultFilterRPC(_ context.Context, fullMethod string, _ error) bool {
 }
 
 func DefaultFilterHTTP(r *http.Request) bool {
+	userAgent := r.Header.Get("User-Agent")
 	switch {
-	case strings.HasPrefix(r.URL.Path, "/health"):
+	case userAgent == "Envoy/HC", // Envoy Proxy healthchecker
+		strings.HasPrefix(userAgent, "kube-probe/"),                 // kubernetes probes
+		strings.HasPrefix(userAgent, "GoogleHC/"),                   // GCP load balancer
+		strings.HasPrefix(userAgent, "GoogleStackdriverMonitoring"), // GCP Operations Monitoring
+		strings.HasPrefix(r.URL.Path, "/health"):
 		return false
 	default:
 		return true
