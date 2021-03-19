@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"runtime/debug"
@@ -26,17 +27,8 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-// ProtoJSONMarshalOptions defines how we want to serialize request/response/status messages to logs
-// can be overridden
-var ProtoJSONMarshalOptions = protojson.MarshalOptions{
-	UseEnumNumbers:  false,
-	EmitUnpopulated: true,
-}
-
-var serverError = status.New(codes.Internal, "server error")
-
-// LoggingMiddleware is a middleware for writing request logs in a structured
-// format to stackdriver.
+// LoggingMiddleware proivdes a request-scoped log entry into context for HTTP
+// requests, writes request logs in a structured format to stackdriver.
 func LoggingMiddleware(log *logrus.Logger, opts ...MiddlewareOption) func(http.Handler) http.Handler {
 	o := evaluateMiddlewareOptions(opts)
 
@@ -50,7 +42,7 @@ func LoggingMiddleware(log *logrus.Logger, opts ...MiddlewareOption) func(http.H
 			request := &HTTPRequest{
 				RequestMethod: r.Method,
 				RequestURL:    r.RequestURI,
-				RemoteIP:      r.RemoteAddr,
+				RemoteIP:      getRemoteIP(r),
 				Referer:       r.Referer(),
 				UserAgent:     r.UserAgent(),
 				RequestSize:   strconv.FormatInt(r.ContentLength, 10),
@@ -77,11 +69,17 @@ func LoggingMiddleware(log *logrus.Logger, opts ...MiddlewareOption) func(http.H
 	}
 }
 
+// UnaryLoggingInterceptor provides a request-scoped log entry into context for
+// Unary gRPC requests, and logs request details on the response.
+// Logging interceptors should be chained at the very top of the request scope.
 func UnaryLoggingInterceptor(logger *logrus.Logger, opts ...MiddlewareOption) grpc.UnaryServerInterceptor {
 	o := evaluateMiddlewareOptions(opts)
 	return loggingInterceptor{logger: logger, middlewareOptions: o}.intercept
 }
 
+// StreamLoggingInterceptor provides a request-scoped log entry into context for
+// Streaming gRPC requests, and logs request details at the end of the stream.
+// Logging interceptors should be chained at the very top of the request scope.
 func StreamLoggingInterceptor(logger *logrus.Logger, opts ...MiddlewareOption) grpc.StreamServerInterceptor {
 	o := evaluateMiddlewareOptions(opts)
 	return loggingInterceptor{logger: logger, middlewareOptions: o}.interceptStream
@@ -92,6 +90,7 @@ type loggingInterceptor struct {
 	*middlewareOptions
 }
 
+// GRPCRequest represents details of a gRPC request and response appended to a log.
 type GRPCRequest struct {
 	Method    string `json:"method,omitempty"`
 	UserAgent string `json:"userAgent,omitempty"`
@@ -100,54 +99,43 @@ type GRPCRequest struct {
 	Duration  string `json:"duration,omitempty"`
 }
 
-func (l loggingInterceptor) intercept(
-	ctx context.Context,
-	req interface{},
-	info *grpc.UnaryServerInfo,
-	handler grpc.UnaryHandler,
-) (resp interface{}, err error) {
+func (l loggingInterceptor) intercept(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	startTime := time.Now()
 	ctx = ctxlogrus.ToContext(ctx, logrus.NewEntry(l.logger))
 
-	request := l.requestFromContext(ctx, &GRPCRequest{
-		Method: info.FullMethod,
-	})
+	request := l.requestFromContext(ctx, info.FullMethod)
 
-	resp, err = handler(ctx, req)
+	resp, err := handler(ctx, req)
 
 	request.Duration = fmt.Sprintf("%.9fs", time.Since(startTime).Seconds())
 
 	l.log(ctx, err, info.FullMethod)
 
-	return
+	return resp, err
 }
 
-func (l loggingInterceptor) interceptStream(
-	srv interface{},
-	ss grpc.ServerStream,
-	info *grpc.StreamServerInfo,
-	handler grpc.StreamHandler,
-) (err error) {
+func (l loggingInterceptor) interceptStream(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	startTime := time.Now()
 	ctx := ctxlogrus.ToContext(ss.Context(), logrus.NewEntry(l.logger))
 
-	request := l.requestFromContext(ctx, &GRPCRequest{
-		Method: info.FullMethod,
-	})
+	request := l.requestFromContext(ctx, info.FullMethod)
 
 	wrapped := grpc_middleware.WrapServerStream(ss)
 	wrapped.WrappedContext = ctx
 
-	err = handler(srv, wrapped)
+	err := handler(srv, wrapped)
 
 	request.Duration = fmt.Sprintf("%.9fs", time.Since(startTime).Seconds())
 
 	l.log(ctx, err, info.FullMethod)
 
-	return
+	return err
 }
 
-func (l *loggingInterceptor) requestFromContext(ctx context.Context, request *GRPCRequest) *GRPCRequest {
+// requestFromContext creates gRPC request details with information extracted from the request context
+func (l *loggingInterceptor) requestFromContext(ctx context.Context, method string) *GRPCRequest {
+	request := &GRPCRequest{Method: method}
+
 	if d, ok := ctx.Deadline(); ok {
 		request.Deadline = d.UTC().Format(time.RFC3339Nano)
 	}
@@ -182,27 +170,35 @@ func (l *loggingInterceptor) log(ctx context.Context, err error, method string) 
 	}
 
 	if err != nil {
+		// add grpcStatus to log entry, if available
 		st := status.Convert(err)
-		jsonStatus, merr := ProtoJSONMarshalOptions.Marshal(st.Proto())
-		if merr != nil {
-			ctxlogrus.Extract(ctx).WithError(merr).Errorf("error marshalling error status into log")
+		jsonStatus, merr := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(st.Proto())
+		if merr == nil {
+			ctxlogrus.AddFields(ctx, logrus.Fields{
+				"grpcStatus": json.RawMessage(jsonStatus),
+			})
+			if st.Code() == codes.Internal {
+				// if we're about to return an internal server error to the client, always log as Error level.
+				// skip errorHandler
+				ctxlogrus.Extract(ctx).WithError(err).Errorf("internal error response on RPC %s", method)
+				return
+			}
+		} else {
+			// this should never actually happen, so we log it to help identify
+			// why our gRPC status error isn't included in logs
+			ctxlogrus.Extract(ctx).WithError(merr).Warnf("error marshalling error status into log")
 		}
-		ctxlogrus.AddFields(ctx, logrus.Fields{
-			"grpcStatus": json.RawMessage(jsonStatus),
-		})
 
-		// if the error was already logged by our custom error handler, we
-		// don't need to log the rest of this request
+		// opportunity to log or transform the error with a custom error handler
+		// If the error handler indicates logging has been handled already, we
+		// return early and do not log as Info down below
 		if handled := l.errorHandler(ctx, err, method); handled {
 			return
 		}
 
-		if st.Code() == codes.Internal {
-			ctxlogrus.Extract(ctx).WithError(err).Errorf("internal error response on RPC %s", method)
-			return
-		}
 	}
 
+	// if we reach here, the response either wasn't a bad error worth handling (e.g. NotFound and its ilk)
 	ctxlogrus.Extract(ctx).Infof("served RPC %v", method)
 }
 
@@ -223,7 +219,7 @@ func RecoveryMiddleware(next http.Handler) http.Handler {
 			case error:
 				err = t
 			default:
-				err = fmt.Errorf("unknown error: %w", t)
+				err = fmt.Errorf("unknown panic value: (%T) %v", t, t)
 			}
 
 			ctx := r.Context()
@@ -235,7 +231,7 @@ func RecoveryMiddleware(next http.Handler) http.Handler {
 			entry := ctxlogrus.Extract(ctx)
 
 			// write error back to client
-			jsonStatus, merr := ProtoJSONMarshalOptions.Marshal(stErr.Proto())
+			jsonStatus, merr := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(stErr.Proto())
 			if merr != nil {
 				entry.WithError(merr).Errorf("error marshalling error status into log")
 				fmt.Fprint(w, `{"error": "server_error"}`)
@@ -243,8 +239,7 @@ func RecoveryMiddleware(next http.Handler) http.Handler {
 			}
 
 			if _, err := w.Write(jsonStatus); err != nil {
-				entry.WithError(err).Fatal("error encoding json server_error to ResponseWriter")
-				fmt.Fprint(w, `{"error": "server_error"}`)
+				entry.WithError(err).Warn("error writing json server_error to ResponseWriter")
 				return
 			}
 		}()
@@ -268,7 +263,7 @@ func UnaryRecoveryInterceptor(ctx context.Context, req interface{}, _ *grpc.Unar
 		case error:
 			err = t
 		default:
-			err = fmt.Errorf("unknown error: %w", t)
+			err = fmt.Errorf("unknown panic value: (%T) %v", t, t)
 		}
 
 		stErr := errWithStack(ctx, err)
@@ -294,7 +289,7 @@ func StreamRecoveryInterceptor(srv interface{}, ss grpc.ServerStream, _ *grpc.St
 		case error:
 			err = t
 		default:
-			err = fmt.Errorf("unknown error: %w", t)
+			err = fmt.Errorf("unknown panic value: (%T) %v", t, t)
 		}
 
 		stErr := errWithStack(ss.Context(), err)
@@ -304,13 +299,42 @@ func StreamRecoveryInterceptor(srv interface{}, ss grpc.ServerStream, _ *grpc.St
 	return handler(srv, ss)
 }
 
+// errWithStack generates a stack trace, logs it, and provides an internal
+// server error response back to return to the client
 func errWithStack(ctx context.Context, err error) *status.Status {
 	stack := debug.Stack()
 	ctxlogrus.Extract(ctx).WithError(err).WithField("stackTrace", string(stack)).Error("panic handling request")
 
+	serverError := status.New(codes.Internal, "server error")
 	// generate a shared UUID we can find this log entry from client-provided response body
 	stErr, _ := serverError.WithDetails(&errdetails.RequestInfo{
 		RequestId: shortuuid.New(),
 	})
 	return stErr
+}
+
+// getRemoteIP extracts the remote IP from X-Forwarded-For header, if applicable
+// https://cloud.google.com/load-balancing/docs/https#x-forwarded-for_header
+func getRemoteIP(r *http.Request) string {
+	ctx := r.Context()
+
+	fwdHeader := r.Header.Get("X-Forwarded-For")
+	forwarded := strings.Split(fwdHeader, ",")
+	ctxlogrus.AddFields(ctx, logrus.Fields{
+		"forwardIP": fwdHeader,
+	})
+
+	// x-Forwarded-For directly from GCP LB is assumed to be sanitized
+	// format: `<unverified IP(s)>, <client IP>, <global fw rule ext. IP>, <other proxies IP>`
+	// only second and third entries are added for requests through GCP
+	if len(forwarded) >= 2 {
+		return strings.TrimSpace(forwarded[len(forwarded)-2])
+	}
+
+	// fallback to peer IP
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return "0.0.0.0"
+	}
+	return ip
 }
