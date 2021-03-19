@@ -1,5 +1,11 @@
 package logadapter
 
+import (
+	"encoding/hex"
+
+	"github.com/gofrs/uuid"
+)
+
 type StackTraceStyle int
 
 const (
@@ -76,5 +82,16 @@ func WithStackTraceStyle(s StackTraceStyle) Option {
 func WithPrettyPrint() Option {
 	return func(f *Formatter) {
 		f.PrettyPrint = true
+	}
+}
+
+// WithGlobalTraceID sets a consistent trace id on the global logger context
+// If not provided, a random id will be generated at runtime
+func WithGlobalTraceID(id uuid.UUID) Option {
+	return func(f *Formatter) {
+		buf := make([]byte, 32)
+		hex.Encode(buf, id.Bytes())
+
+		f.GlobalTraceID = string(buf)
 	}
 }

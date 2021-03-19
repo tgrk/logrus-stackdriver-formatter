@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/go-stack/stack"
-	"github.com/lithammer/shortuuid"
+	"github.com/gofrs/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -127,6 +127,7 @@ type Formatter struct {
 	SkipTimestamp   bool
 	RegexSkip       string
 	PrettyPrint     bool
+	GlobalTraceID   string
 }
 
 // NewFormatter returns a new Formatter.
@@ -141,6 +142,13 @@ func NewFormatter(options ...Option) *Formatter {
 	}
 	for _, option := range options {
 		option(&fmtr)
+	}
+
+	// GlobalTraceID groups logs from runtime log entry
+	if fmtr.GlobalTraceID == "" {
+		id := uuid.Must(uuid.NewV4())
+		opt := WithGlobalTraceID(id)
+		opt(&fmtr)
 	}
 	return &fmtr
 }
@@ -221,7 +229,7 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 		ee.SpanID = tc.spanID
 		ee.TraceSampled = tc.traceSampled
 	} else {
-		ee.Trace = fmt.Sprintf("projects/%s/traces/%s", f.ProjectID, shortuuid.New())
+		ee.Trace = fmt.Sprintf("projects/%s/traces/%s", f.ProjectID, f.GlobalTraceID)
 	}
 
 	if val, ok := e.Data["logID"]; ok {

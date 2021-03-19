@@ -14,9 +14,9 @@ import (
 	"time"
 
 	"github.com/felixge/httpsnoop"
+	"github.com/gofrs/uuid"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
-	"github.com/lithammer/shortuuid"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
@@ -306,9 +306,10 @@ func errWithStack(ctx context.Context, err error) *status.Status {
 	ctxlogrus.Extract(ctx).WithError(err).WithField("stackTrace", string(stack)).Error("panic handling request")
 
 	serverError := status.New(codes.Internal, "server error")
+	reqID, _ := uuid.NewV4()
 	// generate a shared UUID we can find this log entry from client-provided response body
 	stErr, _ := serverError.WithDetails(&errdetails.RequestInfo{
-		RequestId: shortuuid.New(),
+		RequestId: reqID.String(),
 	})
 	return stErr
 }
