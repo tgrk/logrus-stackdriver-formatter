@@ -7,18 +7,18 @@ import (
 )
 
 var defaultLogOptions = &middlewareOptions{
-	filterRPC:    DefaultFilterRPC,
-	filterHTTP:   DefaultFilterHTTP,
-	errorHandler: DefaultErrorHandler,
+	filterRPC:        DefaultFilterRPC,
+	filterHTTP:       DefaultFilterHTTP,
+	customErrHandler: DefaultErrorHandler,
 }
 
 type MiddlewareOption func(*middlewareOptions)
 
 // Options
 type middlewareOptions struct {
-	filterRPC    FilterRPC
-	filterHTTP   FilterHTTP
-	errorHandler ErrorHandler
+	filterRPC        FilterRPC
+	filterHTTP       FilterHTTP
+	customErrHandler ErrorHandler
 }
 
 func evaluateMiddlewareOptions(opts []MiddlewareOption) *middlewareOptions {
@@ -48,7 +48,7 @@ func WithHTTPFilter(f FilterHTTP) MiddlewareOption {
 
 func WithErrorHandler(h ErrorHandler) MiddlewareOption {
 	return func(o *middlewareOptions) {
-		o.errorHandler = h
+		o.customErrHandler = h
 	}
 }
 

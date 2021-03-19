@@ -107,6 +107,7 @@ type Entry struct {
 	Trace          string          `json:"logging.googleapis.com/trace,omitempty"`
 	SpanID         string          `json:"logging.googleapis.com/spanId,omitempty"`
 	TraceSampled   bool            `json:"logging.googleapis.com/traceSampled,omitempty"`
+	HTTPRequest    *HTTPRequest    `json:"httpRequest,omitempty"`
 }
 
 // SourceReference is a reference to a particular snapshot of the source tree
@@ -334,38 +335,30 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 
 		// As a convenience, when using supplying the httpRequest field, it
 		// gets special care.
-		if reqData, ok := ee.Context.Data["httpRequest"]; ok {
-			if req, ok := reqData.(*HTTPRequest); ok {
-				ee.Context.HTTPRequest = req
-				delete(ee.Context.Data, "httpRequest")
-			}
+		if req, ok := ee.Context.Data["httpRequest"].(*HTTPRequest); ok {
+			ee.Context.HTTPRequest = req
+			delete(ee.Context.Data, "httpRequest")
 		}
 
 		// As a convenience, when using supplying the grpcRequest field, it
 		// gets special care.
-		if reqData, ok := ee.Context.Data["grpcRequest"]; ok {
-			if req, ok := reqData.(*GRPCRequest); ok {
-				ee.Context.GRPCRequest = req
-				delete(ee.Context.Data, "grpcRequest")
-			}
+		if req, ok := ee.Context.Data["grpcRequest"].(*GRPCRequest); ok {
+			ee.Context.GRPCRequest = req
+			delete(ee.Context.Data, "grpcRequest")
 		}
 
 		// As a convenience, when using supplying the grpcStatus field, it
 		// gets special care.
-		if reqData, ok := ee.Context.Data["grpcStatus"]; ok {
-			if req, ok := reqData.(json.RawMessage); ok {
-				ee.Context.GRPCStatus = req
-				delete(ee.Context.Data, "grpcStatus")
-			}
+		if req, ok := ee.Context.Data["grpcStatus"].(json.RawMessage); ok {
+			ee.Context.GRPCStatus = req
+			delete(ee.Context.Data, "grpcStatus")
 		}
 
 		// As a convenience, when using supplying the pubSubRequest field, it
 		// gets special care.
-		if reqData, ok := ee.Context.Data["pubSubRequest"]; ok {
-			if req, ok := reqData.(map[string]interface{}); ok {
-				ee.Context.PubSubRequest = req
-				delete(ee.Context.Data, "pubsubRequest")
-			}
+		if req, ok := ee.Context.Data["pubSubRequest"].(map[string]interface{}); ok {
+			ee.Context.PubSubRequest = req
+			delete(ee.Context.Data, "pubsubRequest")
 		}
 
 		// @type as ReportedErrorEvent if all required fields may be provided
@@ -373,6 +366,14 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 		if len(message) > 0 && ee.ServiceContext.Service != "" && (ee.StackTrace != "" || ee.SourceLocation != nil) {
 			ee.Type = reportedErrorEventType
 		}
+	}
+
+	// Promote the httpRequest details to parent entry so logs may be presented with HTTP request details
+	// Only do this when the logging middleware provides special instructions in log entry context to do so,
+	// as the resulting log message summary line is specially formatted to ignore the payload message
+	if req, ok := ee.Context.Data["httpRequest"].(requestDetails); ok {
+		ee.HTTPRequest = req.HTTPRequest
+		delete(ee.Context.Data, "httpRequest")
 	}
 
 	ee.Message = strings.Join(message, "\n")

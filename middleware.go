@@ -27,6 +27,12 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
+// an HTTPRequest wrapped in this will always be logged in the log entry root
+// object so that GCP will format it with latency, status, etc. in summary field
+type requestDetails struct {
+	*HTTPRequest
+}
+
 // LoggingMiddleware proivdes a request-scoped log entry into context for HTTP
 // requests, writes request logs in a structured format to stackdriver.
 func LoggingMiddleware(log *logrus.Logger, opts ...MiddlewareOption) func(http.Handler) http.Handler {
@@ -63,7 +69,7 @@ func LoggingMiddleware(log *logrus.Logger, opts ...MiddlewareOption) func(http.H
 
 			if o.filterHTTP(r) {
 				// log the result
-				ctxlogrus.Extract(ctx).Infof("served HTTP %v %v", r.Method, r.URL)
+				ctxlogrus.Extract(ctx).WithField("httpRequest", requestDetails{request}).Infof("served HTTP %v %v", r.Method, r.URL)
 			}
 		})
 	}
@@ -109,7 +115,7 @@ func (l loggingInterceptor) intercept(ctx context.Context, req interface{}, info
 
 	request.Duration = fmt.Sprintf("%.9fs", time.Since(startTime).Seconds())
 
-	l.log(ctx, err, info.FullMethod)
+	l.log(ctx, err, info.FullMethod, request)
 
 	return resp, err
 }
@@ -127,7 +133,7 @@ func (l loggingInterceptor) interceptStream(srv interface{}, ss grpc.ServerStrea
 
 	request.Duration = fmt.Sprintf("%.9fs", time.Since(startTime).Seconds())
 
-	l.log(ctx, err, info.FullMethod)
+	l.log(ctx, err, info.FullMethod, request)
 
 	return err
 }
@@ -164,42 +170,67 @@ func (l *loggingInterceptor) requestFromContext(ctx context.Context, method stri
 // logStatus adds the gRPC Status to the log context.
 // If the response is an internal server error, log that as an Error
 // returns true if the logging was handled (e.g. internal server error)
-func (l *loggingInterceptor) log(ctx context.Context, err error, method string) {
+func (l *loggingInterceptor) log(ctx context.Context, err error, method string, request *GRPCRequest) {
 	if !l.filterRPC(ctx, method, err) {
 		return
 	}
 
-	if err != nil {
-		// add grpcStatus to log entry, if available
-		st := status.Convert(err)
-		jsonStatus, merr := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(st.Proto())
-		if merr == nil {
-			ctxlogrus.AddFields(ctx, logrus.Fields{
-				"grpcStatus": json.RawMessage(jsonStatus),
-			})
-			if st.Code() == codes.Internal {
-				// if we're about to return an internal server error to the client, always log as Error level.
-				// skip errorHandler
-				ctxlogrus.Extract(ctx).WithError(err).Errorf("internal error response on RPC %s", method)
-				return
-			}
-		} else {
-			// this should never actually happen, so we log it to help identify
-			// why our gRPC status error isn't included in logs
-			ctxlogrus.Extract(ctx).WithError(merr).Warnf("error marshalling error status into log")
-		}
+	if handled := l.handleError(ctx, err, method); handled {
+		return
+	}
 
-		// opportunity to log or transform the error with a custom error handler
-		// If the error handler indicates logging has been handled already, we
-		// return early and do not log as Info down below
-		if handled := l.errorHandler(ctx, err, method); handled {
-			return
-		}
-
+	// write a simulacrum of the HTTPRequest as defined on LogEntry spec:
+	// https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#HttpRequest
+	// This allows log lines to be formatted with special little widgets in GCP
+	// logs view just like the Load Balancer logs
+	httpReq := requestDetails{
+		&HTTPRequest{
+			RequestMethod: http.MethodPost,
+			RequestURL:    request.Method,
+			UserAgent:     request.UserAgent,
+			Latency:       request.Duration,
+			RemoteIP:      request.PeerAddr,
+			Protocol:      "gRPC",
+			// TODO:
+			// ResponseSize: "",
+			Status: strconv.Itoa(statusRPCToHTTP(err)),
+		},
 	}
 
 	// if we reach here, the response either wasn't a bad error worth handling (e.g. NotFound and its ilk)
-	ctxlogrus.Extract(ctx).Infof("served RPC %v", method)
+	ctxlogrus.Extract(ctx).WithField("httpRequest", httpReq).Infof("served RPC %v", method)
+}
+
+// handleError adds grpcStatus to logentry, and can handle our most egregious errors
+// returns true if the default Info logger should be skipped
+func (l *loggingInterceptor) handleError(ctx context.Context, err error, method string) (handled bool) {
+	if err == nil {
+		return false
+	}
+	st := status.Convert(err)
+
+	// add grpcStatus to log entry, if available
+	jsonStatus, merr := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(st.Proto())
+	if merr != nil {
+		// this should never actually happen, so we log it to help identify
+		// why our gRPC status error isn't included in logs
+		ctxlogrus.Extract(ctx).WithError(merr).Warnf("error marshalling error status into log")
+		return false
+	}
+
+	ctxlogrus.AddFields(ctx, logrus.Fields{
+		"grpcStatus": json.RawMessage(jsonStatus),
+	})
+	// if we're about to return an internal server error to the client, always log as Error level.
+	if st.Code() == codes.Internal {
+		ctxlogrus.Extract(ctx).WithError(err).Errorf("internal error response on RPC %s", method)
+		return true
+	}
+
+	// opportunity to log or transform the error with a custom error handler
+	// If the error handler indicates logging has been handled already, we
+	// return early and do not log as Info down below
+	return l.customErrHandler(ctx, err, method)
 }
 
 // RecoveryMiddleware recovers from panics in the HTTP handler chain, logging
@@ -338,4 +369,46 @@ func getRemoteIP(r *http.Request) string {
 		return "0.0.0.0"
 	}
 	return ip
+}
+
+// Convert server-sent RPC status codes to HTTP-equivalent.
+// ONLY FOR USE IN LOG.
+func statusRPCToHTTP(err error) int {
+	if err == nil {
+		return http.StatusOK
+	}
+
+	st := status.Convert(err)
+	switch st.Code() {
+	case codes.Canceled:
+		return http.StatusRequestTimeout // ESP converts this to nginx status 499, which isn't real
+	case codes.InvalidArgument:
+		return http.StatusBadRequest
+	case codes.DeadlineExceeded:
+		return http.StatusGatewayTimeout
+	case codes.NotFound:
+		return http.StatusNotFound
+	case codes.AlreadyExists:
+		return http.StatusConflict
+	case codes.PermissionDenied:
+		return http.StatusForbidden
+	case codes.ResourceExhausted:
+		return http.StatusTooManyRequests
+	case codes.FailedPrecondition:
+		return http.StatusBadRequest
+	case codes.Aborted:
+		return http.StatusConflict
+	case codes.OutOfRange:
+		return http.StatusBadRequest
+	case codes.Unimplemented:
+		return http.StatusNotImplemented
+	case codes.Internal:
+		return http.StatusInternalServerError
+	case codes.Unavailable:
+		return http.StatusServiceUnavailable
+	case codes.Unauthenticated:
+		return http.StatusUnauthorized
+	default:
+		return http.StatusInternalServerError
+	}
 }
