@@ -321,51 +321,30 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 			delete(ee.Context.Data, "stackTrace")
 		}
 
-		// UserID, email, or arbitrary token identifying a user can be provided to an error report
-		if userData, ok := ee.Context.Data["user"]; ok {
-			if user, ok := userData.(string); ok {
-				ee.Context.User = user
-				delete(ee.Context.Data, "user")
-			}
-			if user, ok := userData.(fmt.Stringer); ok {
-				ee.Context.User = user.String()
-				delete(ee.Context.Data, "user")
-			}
-		}
-
-		// As a convenience, when using supplying the httpRequest field, it
-		// gets special care.
-		if req, ok := ee.Context.Data["httpRequest"].(*HTTPRequest); ok {
-			ee.Context.HTTPRequest = req
-			delete(ee.Context.Data, "httpRequest")
-		}
-
-		// As a convenience, when using supplying the grpcRequest field, it
-		// gets special care.
-		if req, ok := ee.Context.Data["grpcRequest"].(*GRPCRequest); ok {
-			ee.Context.GRPCRequest = req
-			delete(ee.Context.Data, "grpcRequest")
-		}
-
-		// As a convenience, when using supplying the grpcStatus field, it
-		// gets special care.
-		if req, ok := ee.Context.Data["grpcStatus"].(json.RawMessage); ok {
-			ee.Context.GRPCStatus = req
-			delete(ee.Context.Data, "grpcStatus")
-		}
-
-		// As a convenience, when using supplying the pubSubRequest field, it
-		// gets special care.
-		if req, ok := ee.Context.Data["pubSubRequest"].(map[string]interface{}); ok {
-			ee.Context.PubSubRequest = req
-			delete(ee.Context.Data, "pubsubRequest")
-		}
-
 		// @type as ReportedErrorEvent if all required fields may be provided
 		// https://cloud.google.com/error-reporting/docs/formatting-error-messages#json_representation
 		if len(message) > 0 && ee.ServiceContext.Service != "" && (ee.StackTrace != "" || ee.SourceLocation != nil) {
 			ee.Type = reportedErrorEventType
 		}
+	}
+
+	// UserID, email, or arbitrary token identifying a user can be provided to an error report
+	if userData, ok := ee.Context.Data["user"]; ok {
+		if user, ok := userData.(string); ok {
+			ee.Context.User = user
+			delete(ee.Context.Data, "user")
+		}
+		if user, ok := userData.(fmt.Stringer); ok {
+			ee.Context.User = user.String()
+			delete(ee.Context.Data, "user")
+		}
+	}
+
+	// As a convenience, when using supplying the httpRequest field, it
+	// gets special care.
+	if req, ok := ee.Context.Data["httpRequest"].(*HTTPRequest); ok {
+		ee.Context.HTTPRequest = req
+		delete(ee.Context.Data, "httpRequest")
 	}
 
 	// Promote the httpRequest details to parent entry so logs may be presented with HTTP request details
@@ -374,6 +353,27 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 	if req, ok := ee.Context.Data["httpRequest"].(requestDetails); ok {
 		ee.HTTPRequest = req.HTTPRequest
 		delete(ee.Context.Data, "httpRequest")
+	}
+
+	// As a convenience, when using supplying the grpcRequest field, it
+	// gets special care.
+	if req, ok := ee.Context.Data["grpcRequest"].(*GRPCRequest); ok {
+		ee.Context.GRPCRequest = req
+		delete(ee.Context.Data, "grpcRequest")
+	}
+
+	// As a convenience, when using supplying the grpcStatus field, it
+	// gets special care.
+	if req, ok := ee.Context.Data["grpcStatus"].(json.RawMessage); ok {
+		ee.Context.GRPCStatus = req
+		delete(ee.Context.Data, "grpcStatus")
+	}
+
+	// As a convenience, when using supplying the pubSubRequest field, it
+	// gets special care.
+	if req, ok := ee.Context.Data["pubSubRequest"].(map[string]interface{}); ok {
+		ee.Context.PubSubRequest = req
+		delete(ee.Context.Data, "pubsubRequest")
 	}
 
 	ee.Message = strings.Join(message, "\n")
