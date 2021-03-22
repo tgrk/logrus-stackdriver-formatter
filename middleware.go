@@ -64,7 +64,7 @@ func LoggingMiddleware(log *logrus.Logger, opts ...MiddlewareOption) func(http.H
 			m := httpsnoop.CaptureMetrics(handler, w, r)
 
 			request.Status = strconv.Itoa(m.Code)
-			request.Latency = fmt.Sprintf("%.9fs", m.Duration.Seconds())
+			request.Latency = fmt.Sprintf("%.5fs", m.Duration.Seconds())
 			request.ResponseSize = strconv.FormatInt(m.Written, 10)
 
 			if o.filterHTTP(r) {
@@ -113,7 +113,7 @@ func (l loggingInterceptor) intercept(ctx context.Context, req interface{}, info
 
 	resp, err := handler(ctx, req)
 
-	request.Duration = fmt.Sprintf("%.9fs", time.Since(startTime).Seconds())
+	request.Duration = fmt.Sprintf("%.5fs", time.Since(startTime).Seconds())
 
 	l.log(ctx, err, info.FullMethod, request)
 
@@ -131,7 +131,7 @@ func (l loggingInterceptor) interceptStream(srv interface{}, ss grpc.ServerStrea
 
 	err := handler(srv, wrapped)
 
-	request.Duration = fmt.Sprintf("%.9fs", time.Since(startTime).Seconds())
+	request.Duration = fmt.Sprintf("%.5fs", time.Since(startTime).Seconds())
 
 	l.log(ctx, err, info.FullMethod, request)
 
@@ -234,7 +234,7 @@ func (l *loggingInterceptor) handleError(ctx context.Context, err error, method 
 }
 
 // RecoveryMiddleware recovers from panics in the HTTP handler chain, logging
-// an error for Error Reporting
+// an error for Error Reporting.
 func RecoveryMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
@@ -306,7 +306,7 @@ func UnaryRecoveryInterceptor(ctx context.Context, req interface{}, _ *grpc.Unar
 }
 
 // StreamRecoveryInterceptor is an interceptor that recovers panics from
-// Streaming services and turns them into nicer gRPC errors
+// Streaming services and turns them into nicer gRPC errors.
 func StreamRecoveryInterceptor(srv interface{}, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
 	defer func() {
 		e := recover()

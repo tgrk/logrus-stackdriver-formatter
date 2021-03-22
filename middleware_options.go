@@ -61,8 +61,7 @@ type (
 	ErrorHandler func(ctx context.Context, err error, method string) (handled bool)
 )
 
-// TODO: default filters (NO healthchecks!)
-
+// DefaultFilterRPC filters gRPC standard health check and gRPC reflection requests.
 func DefaultFilterRPC(_ context.Context, fullMethod string, _ error) bool {
 	switch {
 	case strings.HasPrefix(fullMethod, "/grpc.health"):
@@ -74,6 +73,7 @@ func DefaultFilterRPC(_ context.Context, fullMethod string, _ error) bool {
 	}
 }
 
+// DefaultFilterHTTP filters health checks and monitoring canaries from some well known user agents or URL paths.
 func DefaultFilterHTTP(r *http.Request) bool {
 	userAgent := r.Header.Get("User-Agent")
 	switch {
@@ -88,6 +88,7 @@ func DefaultFilterHTTP(r *http.Request) bool {
 	}
 }
 
+// DefaultErrorHandler does nothing.
 func DefaultErrorHandler(ctx context.Context, err error, method string) (handled bool) {
 	return false
 }
