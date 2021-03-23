@@ -9,5 +9,5 @@ type LogWrapper struct {
 
 // Error is for testing StackSkip. See stackskip_test.go for details
 func (l *LogWrapper) Error(msg string) {
-	l.Logger.WithField("trace", "1").Error(msg)
+	l.Logger.WithField("trace", "105445aa7843bc8bf206b12000100000/1;o=1").Error(msg)
 }
