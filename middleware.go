@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Mattel/logrus-stackdriver-formatter/ctxlogrus"
 	"github.com/felixge/httpsnoop"
 	"github.com/gofrs/uuid"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
@@ -55,11 +55,6 @@ func LoggingMiddleware(log *logrus.Logger, opts ...MiddlewareOption) func(http.H
 				Protocol:      r.Proto,
 			}
 			ctxlogrus.AddFields(ctx, logrus.Fields{"httpRequest": request})
-
-			traceHeader := r.Header.Get("X-Cloud-Trace-Context")
-			if traceHeader != "" {
-				ctxlogrus.AddFields(ctx, logrus.Fields{"trace": traceHeader})
-			}
 
 			m := httpsnoop.CaptureMetrics(handler, w, r)
 
@@ -156,10 +151,6 @@ func (l *loggingInterceptor) requestFromContext(ctx context.Context, method stri
 
 	if md, ok := metadata.FromIncomingContext(ctx); ok && md != nil {
 		request.UserAgent = strings.Join(md.Get("user-agent"), "")
-
-		if trace := md.Get("X-Cloud-Trace-Context"); len(trace) == 1 {
-			ctxlogrus.AddFields(ctx, logrus.Fields{"trace": trace[0]})
-		}
 	}
 
 	ctxlogrus.AddFields(ctx, logrus.Fields{"grpcRequest": request})
