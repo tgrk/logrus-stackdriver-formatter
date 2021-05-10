@@ -27,6 +27,15 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
+// InitEntry initializes the log entry in context
+func InitEntry(ctx context.Context, logger *logrus.Logger) context.Context {
+	// we pack the initial context into the log entry so that hooks
+	// needing a request-scoped context may have it.
+
+	entry := logrus.NewEntry(logger).WithContext(ctx)
+	return ctxlogrus.ToContext(ctx, entry)
+}
+
 // an HTTPRequest wrapped in this will always be logged in the log entry root
 // object so that GCP will format it with latency, status, etc. in summary field
 type requestDetails struct {
@@ -40,8 +49,7 @@ func LoggingMiddleware(log *logrus.Logger, opts ...MiddlewareOption) func(http.H
 
 	return func(handler http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			entry := logrus.NewEntry(log)
-			ctx := ctxlogrus.ToContext(r.Context(), entry)
+			ctx := InitEntry(r.Context(), log)
 			r = r.WithContext(ctx)
 
 			// https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#HttpRequest
@@ -102,7 +110,7 @@ type GRPCRequest struct {
 
 func (l loggingInterceptor) intercept(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	startTime := time.Now()
-	ctx = ctxlogrus.ToContext(ctx, logrus.NewEntry(l.logger))
+	ctx = InitEntry(ctx, l.logger)
 
 	request := l.requestFromContext(ctx, info.FullMethod)
 
@@ -117,7 +125,7 @@ func (l loggingInterceptor) intercept(ctx context.Context, req interface{}, info
 
 func (l loggingInterceptor) interceptStream(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	startTime := time.Now()
-	ctx := ctxlogrus.ToContext(ss.Context(), logrus.NewEntry(l.logger))
+	ctx := InitEntry(ss.Context(), l.logger)
 
 	request := l.requestFromContext(ctx, info.FullMethod)
 

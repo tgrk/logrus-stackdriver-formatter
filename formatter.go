@@ -103,11 +103,11 @@ type Entry struct {
 	Message        string          `json:"message,omitempty"`
 	Severity       severity        `json:"severity,omitempty"`
 	Context        *Context        `json:"context,omitempty"`
-	SourceLocation *SourceLocation `json:"sourceLocation,omitempty"`
+	SourceLocation *SourceLocation `json:"logging.googleapis.com/sourceLocation,omitempty"`
 	StackTrace     string          `json:"stack_trace,omitempty"`
 	Trace          string          `json:"logging.googleapis.com/trace,omitempty"`
 	SpanID         string          `json:"logging.googleapis.com/spanId,omitempty"`
-	TraceSampled   bool            `json:"logging.googleapis.com/traceSampled,omitempty"`
+	TraceSampled   bool            `json:"logging.googleapis.com/trace_sampled,omitempty"`
 	HTTPRequest    *HTTPRequest    `json:"httpRequest,omitempty"`
 }
 
