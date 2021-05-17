@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	logadapter "github.com/Mattel/logrus-stackdriver-formatter"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
+	"github.com/Mattel/logrus-stackdriver-formatter/ctxlogrus"
 	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
 	grpc_testing "github.com/grpc-ecosystem/go-grpc-middleware/testing"
 	pb_testproto "github.com/grpc-ecosystem/go-grpc-middleware/testing/testproto"

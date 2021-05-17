@@ -11,6 +11,7 @@ import (
 	"github.com/go-stack/stack"
 	"github.com/gofrs/uuid"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type severity string
@@ -102,11 +103,11 @@ type Entry struct {
 	Message        string          `json:"message,omitempty"`
 	Severity       severity        `json:"severity,omitempty"`
 	Context        *Context        `json:"context,omitempty"`
-	SourceLocation *SourceLocation `json:"sourceLocation,omitempty"`
+	SourceLocation *SourceLocation `json:"logging.googleapis.com/sourceLocation,omitempty"`
 	StackTrace     string          `json:"stack_trace,omitempty"`
 	Trace          string          `json:"logging.googleapis.com/trace,omitempty"`
 	SpanID         string          `json:"logging.googleapis.com/spanId,omitempty"`
-	TraceSampled   bool            `json:"logging.googleapis.com/traceSampled,omitempty"`
+	TraceSampled   bool            `json:"logging.googleapis.com/trace_sampled,omitempty"`
 	HTTPRequest    *HTTPRequest    `json:"httpRequest,omitempty"`
 }
 
@@ -138,6 +139,7 @@ func NewFormatter(options ...Option) *Formatter {
 			"github.com/sirupsen/logrus",
 			"github.com/Mattel/logrus-stackdriver-formatter",
 			"github.com/grpc-ecosystem/go-grpc-middleware",
+			"go.opentelemetry.io",
 		},
 		StackStyle: TraceInMessage,
 	}
@@ -216,20 +218,18 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 		},
 	}
 
-	// If provided, parse out the CloudTrace string
-	var tc *CloudTraceContext
-	if val, ok := e.Data["trace"]; ok {
-		if traceID, ok := val.(string); ok {
-			tc = parseTraceID(traceID)
-			delete(ee.Context.Data, "trace")
+	// If provided, format the current active trace and span id's to correlate logs to traces
+	if tc, ok := e.Data["span_context"]; ok {
+		if spanCtx, ok := tc.(trace.SpanContext); ok && spanCtx.IsValid() {
+			ee.Trace = fmt.Sprintf("projects/%s/traces/%s", f.ProjectID, spanCtx.TraceID())
+			ee.SpanID = spanCtx.SpanID().String()
+			ee.TraceSampled = spanCtx.IsSampled()
 		}
+
+		delete(ee.Context.Data, "span_context")
 	}
 
-	if tc != nil {
-		ee.Trace = fmt.Sprintf("projects/%s/traces/%s", f.ProjectID, tc.traceID)
-		ee.SpanID = tc.spanID
-		ee.TraceSampled = tc.traceSampled
-	} else {
+	if ee.Trace == "" {
 		ee.Trace = fmt.Sprintf("projects/%s/traces/%s", f.ProjectID, f.GlobalTraceID)
 	}
 
@@ -378,28 +378,6 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 
 	ee.Message = strings.Join(message, "\n")
 	return ee, nil
-}
-
-var reCloudTraceContext = regexp.MustCompile(
-	// Matches on "TRACE_ID"
-	`([a-f\d]+)?` +
-		// Matches on "/SPAN_ID"
-		`(?:/([a-f\d]+))?` +
-		// Matches on ";0=TRACE_TRUE"
-		`(?:;o=(0|1))?`)
-
-type CloudTraceContext struct {
-	traceID, spanID string
-	traceSampled    bool
-}
-
-func parseTraceID(s string) *CloudTraceContext {
-	c := &CloudTraceContext{}
-
-	matches := reCloudTraceContext.FindStringSubmatch(s)
-	c.traceID, c.spanID, c.traceSampled = matches[1], matches[2], matches[3] == "1"
-
-	return c
 }
 
 func extractFromCaller(e *logrus.Entry) *SourceLocation {

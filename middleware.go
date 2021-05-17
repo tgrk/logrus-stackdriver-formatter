@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Mattel/logrus-stackdriver-formatter/ctxlogrus"
 	"github.com/felixge/httpsnoop"
 	"github.com/gofrs/uuid"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
@@ -26,6 +26,15 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 )
+
+// WithLogger initializes the log entry in context
+func WithLogger(ctx context.Context, logger *logrus.Logger) context.Context {
+	// we pack the initial context into the log entry so that hooks
+	// needing a request-scoped context may have it.
+
+	entry := logrus.NewEntry(logger).WithContext(ctx)
+	return ctxlogrus.ToContext(ctx, entry)
+}
 
 // an HTTPRequest wrapped in this will always be logged in the log entry root
 // object so that GCP will format it with latency, status, etc. in summary field
@@ -40,8 +49,7 @@ func LoggingMiddleware(log *logrus.Logger, opts ...MiddlewareOption) func(http.H
 
 	return func(handler http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			entry := logrus.NewEntry(log)
-			ctx := ctxlogrus.ToContext(r.Context(), entry)
+			ctx := WithLogger(r.Context(), log)
 			r = r.WithContext(ctx)
 
 			// https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#HttpRequest
@@ -55,11 +63,6 @@ func LoggingMiddleware(log *logrus.Logger, opts ...MiddlewareOption) func(http.H
 				Protocol:      r.Proto,
 			}
 			ctxlogrus.AddFields(ctx, logrus.Fields{"httpRequest": request})
-
-			traceHeader := r.Header.Get("X-Cloud-Trace-Context")
-			if traceHeader != "" {
-				ctxlogrus.AddFields(ctx, logrus.Fields{"trace": traceHeader})
-			}
 
 			m := httpsnoop.CaptureMetrics(handler, w, r)
 
@@ -107,7 +110,7 @@ type GRPCRequest struct {
 
 func (l loggingInterceptor) intercept(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	startTime := time.Now()
-	ctx = ctxlogrus.ToContext(ctx, logrus.NewEntry(l.logger))
+	ctx = WithLogger(ctx, l.logger)
 
 	request := l.requestFromContext(ctx, info.FullMethod)
 
@@ -122,7 +125,7 @@ func (l loggingInterceptor) intercept(ctx context.Context, req interface{}, info
 
 func (l loggingInterceptor) interceptStream(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	startTime := time.Now()
-	ctx := ctxlogrus.ToContext(ss.Context(), logrus.NewEntry(l.logger))
+	ctx := WithLogger(ss.Context(), l.logger)
 
 	request := l.requestFromContext(ctx, info.FullMethod)
 
@@ -156,10 +159,6 @@ func (l *loggingInterceptor) requestFromContext(ctx context.Context, method stri
 
 	if md, ok := metadata.FromIncomingContext(ctx); ok && md != nil {
 		request.UserAgent = strings.Join(md.Get("user-agent"), "")
-
-		if trace := md.Get("X-Cloud-Trace-Context"); len(trace) == 1 {
-			ctxlogrus.AddFields(ctx, logrus.Fields{"trace": trace[0]})
-		}
 	}
 
 	ctxlogrus.AddFields(ctx, logrus.Fields{"grpcRequest": request})
