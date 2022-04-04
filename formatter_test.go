@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	logadapter "github.com/Mattel/logrus-stackdriver-formatter"
+	logadapter "github.com/StevenACoffman/logrus-stackdriver-formatter"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
@@ -25,7 +25,7 @@ func TestFormatter(t *testing.T) {
 				logadapter.WithVersion("0.1"),
 				logadapter.WithSkipTimestamp(),
 				logadapter.WithSourceReference(
-					"https://github.com/Mattel/test.git",
+					"https://github.com/StevenACoffman/test.git",
 					"v1.2.3",
 				),
 			)
@@ -101,7 +101,7 @@ var formatterTests = []struct {
 				},
 				"sourceReferences": []map[string]interface{}{
 					{
-						"repository": "https://github.com/Mattel/test.git",
+						"repository": "https://github.com/StevenACoffman/test.git",
 						"revisionId": "v1.2.3",
 					},
 				},
@@ -147,7 +147,7 @@ var formatterTests = []struct {
 				},
 				"sourceReferences": []map[string]interface{}{
 					{
-						"repository": "https://github.com/Mattel/test.git",
+						"repository": "https://github.com/StevenACoffman/test.git",
 						"revisionId": "v1.2.3",
 					},
 				},
@@ -204,7 +204,7 @@ var formatterTests = []struct {
 				},
 				"sourceReferences": []map[string]interface{}{
 					{
-						"repository": "https://github.com/Mattel/test.git",
+						"repository": "https://github.com/StevenACoffman/test.git",
 						"revisionId": "v1.2.3",
 					},
 				},

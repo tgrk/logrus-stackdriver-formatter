@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/Mattel/logrus-stackdriver-formatter/test"
+	"github.com/StevenACoffman/logrus-stackdriver-formatter/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 )
@@ -19,7 +19,7 @@ func TestStackSkip(t *testing.T) {
 		WithProjectID("test-project"),
 		WithService("test"),
 		WithVersion("0.1"),
-		WithStackSkip("github.com/Mattel/logrus-stackdriver-formatter"),
+		WithStackSkip("github.com/StevenACoffman/logrus-stackdriver-formatter"),
 		WithSkipTimestamp(),
 	)
 
