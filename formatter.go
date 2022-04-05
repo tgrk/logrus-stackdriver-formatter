@@ -9,12 +9,15 @@ import (
 	"time"
 
 	"github.com/go-stack/stack"
-	"github.com/lithammer/shortuuid"
+	"github.com/gofrs/uuid"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type severity string
 
+// LogSeverity as understood by GCP
+// https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#logseverity
 const (
 	severityDebug    severity = "DEBUG"
 	severityInfo     severity = "INFO"
@@ -33,29 +36,46 @@ var levelsToSeverity = map[logrus.Level]severity{
 	logrus.PanicLevel: severityAlert,
 }
 
+// log entries containing this type are evaluated as long entries as though all
+// required fields are present, and captures the error event
+const reportedErrorEventType = "type.googleapis.com/google.devtools.clouderrorreporting.v1beta1.ReportedErrorEvent"
+
 // ServiceContext provides the data about the service we are sending to Google.
 type ServiceContext struct {
 	Service string `json:"service,omitempty"`
 	Version string `json:"version,omitempty"`
 }
 
-// ReportLocation is the information about where an error occurred.
-type ReportLocation struct {
+// SourceLocation is the information about where a log entry was produced.
+// https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#LogEntrySourceLocation
+type SourceLocation struct {
 	FilePath     string `json:"file,omitempty"`
 	LineNumber   int    `json:"line,omitempty"`
 	FunctionName string `json:"function,omitempty"`
 }
 
+// ReportLocation is the information about where an error occurred.
+// https://cloud.google.com/error-reporting/reference/rest/v1beta1/ErrorContext#SourceLocation
+type ReportLocation struct {
+	FilePath     string `json:"filePath,omitempty"`
+	LineNumber   int    `json:"lineNumber,omitempty"`
+	FunctionName string `json:"functionName,omitempty"`
+}
+
 // Context is sent with every message to stackdriver.
 type Context struct {
-	Data           map[string]interface{} `json:"data,omitempty"`
-	ReportLocation *ReportLocation        `json:"reportLocation,omitempty"`
-	HTTPRequest    *HTTPRequest           `json:"httpRequest,omitempty"`
-	PubSubRequest  map[string]interface{} `json:"pubSubRequest,omitempty"`
-	GRPCRequest    map[string]interface{} `json:"grpcRequest,omitempty"`
+	Data             map[string]interface{} `json:"data,omitempty"`
+	User             string                 `json:"user,omitempty"`
+	ReportLocation   *ReportLocation        `json:"reportLocation,omitempty"`
+	HTTPRequest      *HTTPRequest           `json:"httpRequest,omitempty"`
+	PubSubRequest    map[string]interface{} `json:"pubSubRequest,omitempty"`
+	GRPCRequest      *GRPCRequest           `json:"grpcRequest,omitempty"`
+	GRPCStatus       json.RawMessage        `json:"grpcStatus,omitempty"`
+	SourceReferences []SourceReference      `json:"sourceReferences,omitempty"`
 }
 
 // HTTPRequest defines details of a request and response to append to a log.
+// https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#httprequest
 type HTTPRequest struct {
 	RequestMethod                  string `json:"requestMethod,omitempty"`
 	RequestURL                     string `json:"requestUrl,omitempty"`
@@ -76,70 +96,40 @@ type HTTPRequest struct {
 
 // Entry stores a log entry.
 type Entry struct {
+	Type           string          `json:"@type,omitempty"`
 	LogName        string          `json:"logName,omitempty"`
 	Timestamp      string          `json:"timestamp,omitempty"`
-	Trace          string          `json:"logging.googleapis.com/trace,omitempty"`
 	ServiceContext *ServiceContext `json:"serviceContext,omitempty"`
 	Message        string          `json:"message,omitempty"`
 	Severity       severity        `json:"severity,omitempty"`
 	Context        *Context        `json:"context,omitempty"`
-	SourceLocation *ReportLocation `json:"sourceLocation,omitempty"`
+	SourceLocation *SourceLocation `json:"logging.googleapis.com/sourceLocation,omitempty"`
+	StackTrace     string          `json:"stack_trace,omitempty"`
+	Trace          string          `json:"logging.googleapis.com/trace,omitempty"`
+	SpanID         string          `json:"logging.googleapis.com/spanId,omitempty"`
+	TraceSampled   bool            `json:"logging.googleapis.com/trace_sampled,omitempty"`
+	HTTPRequest    *HTTPRequest    `json:"httpRequest,omitempty"`
+}
+
+// SourceReference is a reference to a particular snapshot of the source tree
+// used to build and deploy an application
+type SourceReference struct {
+	Repository string `json:"repository,omitempty"`
+	RevisionID string `json:"revisionId,omitempty"`
 }
 
 // Formatter implements Stackdriver formatting for logrus.
 type Formatter struct {
-	Service       string
-	Version       string
-	ProjectID     string
-	StackSkip     []string
-	SkipTimestamp bool
-	RegexSkip     string
-}
-
-// Option lets you configure the Formatter.
-type Option func(*Formatter)
-
-// WithService lets you configure the service name used for error reporting.
-func WithService(n string) Option {
-	return func(f *Formatter) {
-		f.Service = n
-	}
-}
-
-// WithVersion lets you configure the service version used for error reporting.
-func WithVersion(v string) Option {
-	return func(f *Formatter) {
-		f.Version = v
-	}
-}
-
-// WithProjectID makes sure all entries have your Project information.
-func WithProjectID(i string) Option {
-	return func(f *Formatter) {
-		f.ProjectID = i
-	}
-}
-
-// WithStackSkip lets you configure which packages should be skipped for locating the error.
-func WithStackSkip(v string) Option {
-	return func(f *Formatter) {
-		f.StackSkip = append(f.StackSkip, v)
-	}
-}
-
-// WithRegexSkip lets you configure
-// which functions or packages should be skipped for locating the error.
-func WithRegexSkip(v string) Option {
-	return func(f *Formatter) {
-		f.RegexSkip = v
-	}
-}
-
-// WithSkipTimestamp lets you avoid setting the timestamp
-func WithSkipTimestamp() Option {
-	return func(f *Formatter) {
-		f.SkipTimestamp = true
-	}
+	Service         string
+	Version         string
+	SourceReference []SourceReference
+	ProjectID       string
+	StackSkip       []string
+	StackStyle      StackTraceStyle
+	SkipTimestamp   bool
+	RegexSkip       string
+	PrettyPrint     bool
+	GlobalTraceID   string
 }
 
 // NewFormatter returns a new Formatter.
@@ -148,10 +138,20 @@ func NewFormatter(options ...Option) *Formatter {
 		StackSkip: []string{
 			"github.com/sirupsen/logrus",
 			"github.com/StevenACoffman/logrus-stackdriver-formatter",
+			"github.com/grpc-ecosystem/go-grpc-middleware",
+			"go.opentelemetry.io",
 		},
+		StackStyle: TraceInMessage,
 	}
 	for _, option := range options {
 		option(&fmtr)
+	}
+
+	// GlobalTraceID groups logs from runtime log entry
+	if fmtr.GlobalTraceID == "" {
+		id := uuid.Must(uuid.NewV4())
+		opt := WithGlobalTraceID(id)
+		opt(&fmtr)
 	}
 	return &fmtr
 }
@@ -218,8 +218,20 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 		},
 	}
 
-	traceID := f.extractTraceID(e)
-	ee.Trace = fmt.Sprintf("projects/%s/traces/%s", f.ProjectID, traceID)
+	// If provided, format the current active trace and span id's to correlate logs to traces
+	if tc, ok := e.Data["span_context"]; ok {
+		if spanCtx, ok := tc.(trace.SpanContext); ok && spanCtx.IsValid() {
+			ee.Trace = fmt.Sprintf("projects/%s/traces/%s", f.ProjectID, spanCtx.TraceID())
+			ee.SpanID = spanCtx.SpanID().String()
+			ee.TraceSampled = spanCtx.IsSampled()
+		}
+
+		delete(ee.Context.Data, "span_context")
+	}
+
+	if ee.Trace == "" {
+		ee.Trace = fmt.Sprintf("projects/%s/traces/%s", f.ProjectID, f.GlobalTraceID)
+	}
 
 	if val, ok := e.Data["logID"]; ok {
 		ee.LogName = "projects/" + f.ProjectID + "/logs/" + f.Service + "%2F" + val.(string)
@@ -239,6 +251,17 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 		}
 	}
 
+	// annotate where the log entry was produced
+	if e.Caller != nil {
+		// attempt first to read from logrus if SetReportCaller was configured
+		ee.SourceLocation = extractFromCaller(e)
+	} else {
+		// Extract report location from call stack.
+		c := f.errorOrigin()
+		lineNumber, _ := strconv.ParseInt(fmt.Sprintf("%d", c), 10, 64)
+		ee.SourceLocation = extractFromCallStack(c, lineNumber)
+	}
+
 	switch severity {
 	case severityError, severityCritical, severityAlert:
 		ee.ServiceContext = &ServiceContext{
@@ -246,84 +269,129 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 			Version: f.Version,
 		}
 
-		// When using WithError(), the error is sent separately, but Error
-		// Reporting expects it to be a part of the message so we append it
-		// instead.
-		if err, ok := ee.Context.Data["error"]; ok {
-			message = append(message, fmt.Sprintf("%v", err))
-			delete(ee.Context.Data, "error")
+		// annotate build information
+		if f.SourceReference != nil {
+			ee.Context.SourceReferences = f.SourceReference
 		}
 
-		// If we supplied a stack trace, we can append it to the message
+		// LogEntry.LogEntrySourceLocation is a different structure than ErrorContext.SourceLocation
+		// When reporting an ErrorEvent, copy the same into ReportLocation
+		// https://cloud.google.com/error-reporting/reference/rest/v1beta1/ErrorContext#SourceLocation
+		// https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#LogEntrySourceLocation
+		if ee.SourceLocation != nil {
+			ee.Context.ReportLocation = &ReportLocation{
+				FilePath:     ee.SourceLocation.FilePath,
+				LineNumber:   ee.SourceLocation.LineNumber,
+				FunctionName: ee.SourceLocation.FunctionName,
+			}
+		}
+
+		// When using WithError(), the error is sent separately, but Error
+		// Reporting expects it to be a part of the message so we append it
+		// also.
+		if err, ok := e.Data[logrus.ErrorKey]; ok {
+			payloadTrace := f.StackStyle == TraceInPayload || f.StackStyle == TraceInBoth
+			if verr, ok := err.(error); ok && payloadTrace {
+				if stackTrace := extractStackFromError(verr); stackTrace != nil {
+					stack := append(message, fmt.Sprintf("%s", stackTrace))
+					ee.StackTrace = strings.Join(stack, "\n")
+				}
+			}
+
+			// errors.WithStack formats the call stack to append to the message with %+v
+			// but this is not correctly formatted to be parsed by GCP Error Reporting
+			message = append(message, fmt.Sprintf("%v", err))
+		}
+
+		// If we supplied a stack trace, we can append it to the message.
+		// Stacktrace is assumed to be formatted by debug.Stack()
+		// Deliberately overwrites any stacktrace provided from the error
 		if st, ok := ee.Context.Data["stackTrace"]; ok {
-			message = append(message, fmt.Sprintf("%v", st))
+			// Error Reporting assumes the first line of a stacktrace explains the error encountered
+			// Even if it's not in the message itself
+			stack := append(message, fmt.Sprintf("%+v", st))
+
+			if f.StackStyle == TraceInMessage || f.StackStyle == TraceInBoth {
+				message = stack
+			}
+			if f.StackStyle == TraceInPayload || f.StackStyle == TraceInBoth {
+				ee.StackTrace = strings.Join(stack, "\n")
+			}
+
 			delete(ee.Context.Data, "stackTrace")
 		}
 
-		// As a convenience, when using supplying the httpRequest field, it
-		// gets special care.
-		if reqData, ok := ee.Context.Data["httpRequest"]; ok {
-			if req, ok := reqData.(*HTTPRequest); ok {
-				ee.Context.HTTPRequest = req
-				delete(ee.Context.Data, "httpRequest")
-			}
-		}
-
-		// As a convenience, when using supplying the grpcRequest field, it
-		// gets special care.
-		if reqData, ok := ee.Context.Data["grpcRequest"]; ok {
-			if req, ok := reqData.(map[string]interface{}); ok {
-				ee.Context.GRPCRequest = req
-				delete(ee.Context.Data, "grpcRequest")
-			}
-		}
-		// As a convenience, when using supplying the pubSubRequest field, it
-		// gets special care.
-		if reqData, ok := ee.Context.Data["pubSubRequest"]; ok {
-			if req, ok := reqData.(map[string]interface{}); ok {
-				ee.Context.PubSubRequest = req
-				delete(ee.Context.Data, "pubsubRequest")
-			}
-		}
-
-		if e.Caller != nil {
-			ee.Context.ReportLocation = extractFromCaller(e)
-			ee.SourceLocation = extractFromCaller(e)
-		} else {
-			// Extract report location from call stack.
-			c := f.errorOrigin()
-			lineNumber, _ := strconv.ParseInt(fmt.Sprintf("%d", c), 10, 64)
-			ee.Context.ReportLocation = extractFromCallStack(c, lineNumber)
-			ee.SourceLocation = extractFromCallStack(c, lineNumber)
+		// @type as ReportedErrorEvent if all required fields may be provided
+		// https://cloud.google.com/error-reporting/docs/formatting-error-messages#json_representation
+		if len(message) > 0 && ee.ServiceContext.Service != "" &&
+			(ee.StackTrace != "" || ee.SourceLocation != nil) {
+			ee.Type = reportedErrorEventType
 		}
 	}
+
+	// UserID, email, or arbitrary token identifying a user can be provided to an error report
+	if userData, ok := ee.Context.Data["user"]; ok {
+		if user, ok := userData.(string); ok {
+			ee.Context.User = user
+			delete(ee.Context.Data, "user")
+		}
+		if user, ok := userData.(fmt.Stringer); ok {
+			ee.Context.User = user.String()
+			delete(ee.Context.Data, "user")
+		}
+	}
+
+	// As a convenience, when using supplying the httpRequest field, it
+	// gets special care.
+	if req, ok := ee.Context.Data["httpRequest"].(*HTTPRequest); ok {
+		ee.Context.HTTPRequest = req
+		delete(ee.Context.Data, "httpRequest")
+	}
+
+	// Promote the httpRequest details to parent entry so logs may be presented with HTTP request
+	// details Only do this when the logging middleware provides special instructions in log entry
+	// context to do so, as the resulting log message summary line is specially formatted to ignore
+	// the payload message
+	if req, ok := ee.Context.Data["httpRequest"].(requestDetails); ok {
+		ee.HTTPRequest = req.HTTPRequest
+		delete(ee.Context.Data, "httpRequest")
+	}
+
+	// As a convenience, when using supplying the grpcRequest field, it
+	// gets special care.
+	if req, ok := ee.Context.Data["grpcRequest"].(*GRPCRequest); ok {
+		ee.Context.GRPCRequest = req
+		delete(ee.Context.Data, "grpcRequest")
+	}
+
+	// As a convenience, when using supplying the grpcStatus field, it
+	// gets special care.
+	if req, ok := ee.Context.Data["grpcStatus"].(json.RawMessage); ok {
+		ee.Context.GRPCStatus = req
+		delete(ee.Context.Data, "grpcStatus")
+	}
+
+	// As a convenience, when using supplying the pubSubRequest field, it
+	// gets special care.
+	if req, ok := ee.Context.Data["pubSubRequest"].(map[string]interface{}); ok {
+		ee.Context.PubSubRequest = req
+		delete(ee.Context.Data, "pubsubRequest")
+	}
+
 	ee.Message = strings.Join(message, "\n")
 	return ee, nil
 }
 
-func (f *Formatter) extractTraceID(e *logrus.Entry) string {
-	var traceID string
-	if val, ok := e.Data["trace"]; ok {
-		traceID, _ = val.(string)
-	} else {
-		// The Trace ID has no powers outside AppEngine,
-		// and is simply used to differentiate one request from another,
-		// so any unique value is sufficient.
-		traceID = shortuuid.New()
-	}
-	return traceID
-}
-
-func extractFromCaller(e *logrus.Entry) *ReportLocation {
-	return &ReportLocation{
+func extractFromCaller(e *logrus.Entry) *SourceLocation {
+	return &SourceLocation{
 		FilePath:     e.Caller.File,
 		FunctionName: e.Caller.Function,
 		LineNumber:   e.Caller.Line,
 	}
 }
 
-func extractFromCallStack(c stack.Call, lineNumber int64) *ReportLocation {
-	return &ReportLocation{
+func extractFromCallStack(c stack.Call, lineNumber int64) *SourceLocation {
+	return &SourceLocation{
 		FilePath:     fmt.Sprintf("%+s", c),
 		LineNumber:   int(lineNumber),
 		FunctionName: fmt.Sprintf("%n", c),
@@ -331,13 +399,16 @@ func extractFromCallStack(c stack.Call, lineNumber int64) *ReportLocation {
 }
 
 // Format formats a logrus entry according to the Stackdriver specifications.
-func (f *Formatter) Format(e *logrus.Entry) ([]byte, error) {
+func (f *Formatter) Format(e *logrus.Entry) (b []byte, err error) {
 	ee, _ := f.ToEntry(e)
 
-	b, err := json.Marshal(ee)
-	if err != nil {
-		return nil, err
+	if f.PrettyPrint {
+		b, err = json.MarshalIndent(ee, "", "\t")
+	} else {
+		b, err = json.Marshal(ee)
 	}
 
-	return append(b, '\n'), nil
+	b = append(b, '\n')
+
+	return
 }
