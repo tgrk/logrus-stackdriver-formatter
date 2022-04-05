@@ -40,6 +40,18 @@ var levelsToSeverity = map[logrus.Level]severity{
 // required fields are present, and captures the error event
 const reportedErrorEventType = "type.googleapis.com/google.devtools.clouderrorreporting.v1beta1.ReportedErrorEvent"
 
+// Known keys
+const (
+	KeyLogID         = "logID"
+	KeySpanContext   = "span_context"
+	KeySpanID        = "spanID"
+	KeyStackTrace    = "stackTrace"
+	KeyTrace         = "trace"
+	KeyUser          = "user"
+	KeyHTTPRequest   = "httpRequest"
+	KeyPubSubRequest = "pubSubRequest"
+)
+
 // ServiceContext provides the data about the service we are sending to Google.
 type ServiceContext struct {
 	Service string `json:"service,omitempty"`
@@ -94,7 +106,11 @@ type HTTPRequest struct {
 	Protocol                       string `json:"protocol,omitempty"`
 }
 
-// Entry stores a log entry.
+// Entry stores a log entry for JSON serialization.
+// Note: Disregard LogEntry for API
+// https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry
+// As it has different keys than the required JSON for the Logging Agent:
+// https://cloud.google.com/logging/docs/structured-logging#special-payload-fields
 type Entry struct {
 	Type           string          `json:"@type,omitempty"`
 	LogName        string          `json:"logName,omitempty"`
@@ -105,10 +121,22 @@ type Entry struct {
 	Context        *Context        `json:"context,omitempty"`
 	SourceLocation *SourceLocation `json:"logging.googleapis.com/sourceLocation,omitempty"`
 	StackTrace     string          `json:"stack_trace,omitempty"`
-	Trace          string          `json:"logging.googleapis.com/trace,omitempty"`
-	SpanID         string          `json:"logging.googleapis.com/spanId,omitempty"`
-	TraceSampled   bool            `json:"logging.googleapis.com/trace_sampled,omitempty"`
-	HTTPRequest    *HTTPRequest    `json:"httpRequest,omitempty"`
+	// Trace string
+	// Optional. Resource name of the trace associated with the log entry, if any.
+	// If it contains a relative resource name, the name is assumed to be relative to
+	// tracing.googleapis.com.
+	// Example:
+	// projects/my-projectid/traces/06796866738c859f2f19b7cfb3214824
+	Trace string `json:"logging.googleapis.com/trace,omitempty"`
+	// Span string
+	// Optional. The span ID within the trace associated with the log entry.
+	// For Trace spans, this is the same format that the Trace API v2 uses: a 16-character
+	// hexadecimal encoding of an 8-byte array.
+	// Example:
+	// 000000000000004a
+	SpanID       string       `json:"logging.googleapis.com/spanId,omitempty"`
+	TraceSampled bool         `json:"logging.googleapis.com/trace_sampled,omitempty"`
+	HTTPRequest  *HTTPRequest `json:"httpRequest,omitempty"`
 }
 
 // SourceReference is a reference to a particular snapshot of the source tree
@@ -219,21 +247,21 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 	}
 
 	// If provided, format the current active trace and span id's to correlate logs to traces
-	if tc, ok := e.Data["span_context"]; ok {
+	if tc, ok := e.Data[KeySpanContext]; ok {
 		if spanCtx, ok := tc.(trace.SpanContext); ok && spanCtx.IsValid() {
 			ee.Trace = fmt.Sprintf("projects/%s/traces/%s", f.ProjectID, spanCtx.TraceID())
 			ee.SpanID = spanCtx.SpanID().String()
 			ee.TraceSampled = spanCtx.IsSampled()
 		}
 
-		delete(ee.Context.Data, "span_context")
+		delete(ee.Context.Data, KeySpanContext)
 	}
 
 	if ee.Trace == "" {
 		ee.Trace = fmt.Sprintf("projects/%s/traces/%s", f.ProjectID, f.GlobalTraceID)
 	}
 
-	if val, ok := e.Data["logID"]; ok {
+	if val, ok := e.Data[KeyLogID]; ok {
 		ee.LogName = "projects/" + f.ProjectID + "/logs/" + f.Service + "%2F" + val.(string)
 	} else {
 		ee.LogName = "projects/" + f.ProjectID + "/logs/" + f.Service
@@ -286,6 +314,7 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 			}
 		}
 
+		// https://cloud.google.com/error-reporting/docs/formatting-error-messages
 		// When using WithError(), the error is sent separately, but Error
 		// Reporting expects it to be a part of the message so we append it
 		// also.
@@ -306,7 +335,7 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 		// If we supplied a stack trace, we can append it to the message.
 		// Stacktrace is assumed to be formatted by debug.Stack()
 		// Deliberately overwrites any stacktrace provided from the error
-		if st, ok := ee.Context.Data["stackTrace"]; ok {
+		if st, ok := ee.Context.Data[KeyStackTrace]; ok {
 			// Error Reporting assumes the first line of a stacktrace explains the error encountered
 			// Even if it's not in the message itself
 			stack := append(message, fmt.Sprintf("%+v", st))
@@ -318,7 +347,7 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 				ee.StackTrace = strings.Join(stack, "\n")
 			}
 
-			delete(ee.Context.Data, "stackTrace")
+			delete(ee.Context.Data, KeyStackTrace)
 		}
 
 		// @type as ReportedErrorEvent if all required fields may be provided
@@ -328,54 +357,78 @@ func (f *Formatter) ToEntry(e *logrus.Entry) (Entry, error) {
 			ee.Type = reportedErrorEventType
 		}
 	}
+	// Ideally, the Trace is set from a full SpanContext,
+	// sometimes we *only* have a Trace ID and/or Span ID
+	// and shouldn't throw those away
+	if val, ok := e.Data[KeyTrace]; ok {
+		if str, ok := val.(string); ok {
+			if f.ProjectID != "" {
+				ee.Trace = str
+				prefix := fmt.Sprintf("projects/%s/traces/", f.ProjectID)
+				if !strings.HasPrefix(str, prefix) {
+					str = prefix + str
+				}
+			}
+			ee.Trace = str
+			delete(ee.Context.Data, KeyTrace)
+		}
+	}
+
+	if val, ok := e.Data[KeySpanID]; ok {
+		if str, ok := val.(string); ok {
+			ee.SpanID = str
+			delete(ee.Context.Data, KeySpanID)
+		}
+	}
 
 	// UserID, email, or arbitrary token identifying a user can be provided to an error report
-	if userData, ok := ee.Context.Data["user"]; ok {
+	if userData, ok := ee.Context.Data[KeyUser]; ok {
 		if user, ok := userData.(string); ok {
 			ee.Context.User = user
-			delete(ee.Context.Data, "user")
+			delete(ee.Context.Data, KeyUser)
 		}
 		if user, ok := userData.(fmt.Stringer); ok {
 			ee.Context.User = user.String()
-			delete(ee.Context.Data, "user")
+			delete(ee.Context.Data, KeyUser)
 		}
 	}
 
-	// As a convenience, when using supplying the httpRequest field, it
+	// As a convenience, when supplying the httpRequest field, it
 	// gets special care.
-	if req, ok := ee.Context.Data["httpRequest"].(*HTTPRequest); ok {
+	if req, ok := ee.Context.Data[KeyHTTPRequest].(*HTTPRequest); ok {
 		ee.Context.HTTPRequest = req
-		delete(ee.Context.Data, "httpRequest")
+		delete(ee.Context.Data, KeyHTTPRequest)
 	}
 
 	// Promote the httpRequest details to parent entry so logs may be presented with HTTP request
-	// details Only do this when the logging middleware provides special instructions in log entry
+	// details.
+	// Only do this when the logging middleware provides special instructions in log entry
 	// context to do so, as the resulting log message summary line is specially formatted to ignore
 	// the payload message
-	if req, ok := ee.Context.Data["httpRequest"].(requestDetails); ok {
+	if req, ok := ee.Context.Data[KeyHTTPRequest].(requestDetails); ok {
 		ee.HTTPRequest = req.HTTPRequest
-		delete(ee.Context.Data, "httpRequest")
+		delete(ee.Context.Data, KeyHTTPRequest)
 	}
 
-	// As a convenience, when using supplying the grpcRequest field, it
+	// As a convenience, when supplying the grpcRequest field, it
 	// gets special care.
 	if req, ok := ee.Context.Data["grpcRequest"].(*GRPCRequest); ok {
 		ee.Context.GRPCRequest = req
 		delete(ee.Context.Data, "grpcRequest")
 	}
 
-	// As a convenience, when using supplying the grpcStatus field, it
+	// As a convenience, when supplying the grpcStatus field, it
 	// gets special care.
 	if req, ok := ee.Context.Data["grpcStatus"].(json.RawMessage); ok {
 		ee.Context.GRPCStatus = req
 		delete(ee.Context.Data, "grpcStatus")
 	}
 
-	// As a convenience, when using supplying the pubSubRequest field, it
+	// As a convenience, when supplying the pubSubRequest field, it
 	// gets special care.
-	if req, ok := ee.Context.Data["pubSubRequest"].(map[string]interface{}); ok {
+	if req, ok := ee.Context.Data[KeyPubSubRequest].(map[string]interface{}); ok {
 		ee.Context.PubSubRequest = req
-		delete(ee.Context.Data, "pubsubRequest")
+		delete(ee.Context.Data, KeyPubSubRequest)
 	}
 
 	ee.Message = strings.Join(message, "\n")
