@@ -34,6 +34,7 @@ var levelsToSeverity = map[logrus.Level]severity{
 	logrus.ErrorLevel: severityError,
 	logrus.FatalLevel: severityCritical,
 	logrus.PanicLevel: severityAlert,
+	logrus.TraceLevel: severityDebug,
 }
 
 // log entries containing this type are evaluated as long entries as though all
